@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LSM Tree & SS Tables Explainer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            color: #2d3748; /* Dark gray text */
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* Rounded corners */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .section-title {
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: 700; /* font-bold */
+            color: #2b6cb0; /* Stronger blue for titles */
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .subsection-title {
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 600; /* font-semibold */
+            color: #3182ce; /* Medium blue for subsections */
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .diagram-box {
+            background-color: #edf2f7; /* Lighter gray for diagram boxes */
+            border: 1px solid #cbd5e0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 0.75rem;
+            font-family: 'Menlo', 'Consolas', monospace;
+            white-space: pre-wrap;
+            position: relative;
+            min-height: 100px; /* Ensure boxes have some height */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .diagram-label {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.75rem;
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .arrow {
+            font-size: 2rem;
+            color: #38a169; /* Green for flow */
+            text-align: center;
+            margin: 0.5rem 0;
+            font-weight: 900;
+        }
+        .data-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed #a0aec0;
+        }
+        .data-entry:last-child {
+            border-bottom: none;
+        }
+        .key {
+            font-weight: bold;
+        }
+        .value {
+            color: #718096;
+        }
+        .tombstone-value {
+            color: #e53e3e; /* Red for tombstone */
+            font-weight: bold;
+        }
+        /* Custom styling for specific terms */
+        .term {
+            font-weight: bold;
+            color: #2b6cb0; /* Highlight terms in blue */
+        }
+        /* Table styles */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #cbd5e0;
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .comparison-table th {
+            background-color: #ebf8ff; /* Light blue for header */
+            font-weight: 600;
+            color: #2c5282;
+        }
+        .comparison-table tbody tr:nth-child(even) {
+            background-color: #f7fafc; /* Lighter stripe for rows */
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+
+    <div class="container bg-white rounded-xl shadow-lg p-6 sm:p-8 lg:p-10">
+
+        <h1 class="section-title mb-8">LSM Tree and SS Tables Explained</h1>
+
+        <!-- New: What is an LSM Tree? -->
+        <div class="card">
+            <h2 class="subsection-title">What is an LSM Tree?</h2>
+            <p class="mb-4">
+                <span class="term">LSM Tree (Log-Structured Merge Tree)</span> is a write-optimized data structure commonly used in modern databases like LevelDB, RocksDB, and Cassandra. It's designed to handle high write throughput efficiently and is structured as:
+            </p>
+            <ul class="list-disc list-inside mb-4">
+                <li>An in-memory balanced binary search tree (like a Red-Black Tree or AVL Tree).</li>
+                <li>On-disk immutable sorted files called SSTables.</li>
+            </ul>
+            <h3 class="text-lg font-semibold mb-2">🔧 How It Works – Step by Step</h3>
+            <ol class="list-decimal list-inside space-y-2">
+                <li>
+                    <h4 class="font-medium">Start in Memory (The Memtable):</h4>
+                    <p class="text-sm">Reads and writes first go to a memory-resident balanced tree, known as the <span class="term">Memtable</span>. This structure allows for incredibly fast operations (inserts, updates, and point reads are all $O(\log n)$) because all data access occurs in RAM, avoiding costly disk I/O at this stage.</p>
+                    <div class="diagram-box mt-4 bg-emerald-50 text-emerald-800 border-emerald-500">
+                        <span class="diagram-label">Memtable State</span>
+                        <p class="text-xl font-bold mb-2">In-Memory (Fast!)</p>
+                        <p class="text-xs text-gray-500 mt-2">Example: (Charlie, 110) &leftarrow; (Bob, 90) &leftarrow; (Alice, 105)</p>
+                    </div>
+                </li>
+                <li>
+                    <h4 class="font-medium">Write-Ahead Log (WAL) for Durability:</h4>
+                    <p class="text-sm">To ensure that no data is lost in the event of a system crash, every single change (insert, update, or delete) is first appended to a sequential <span class="term">Write-Ahead Log (WAL)</span> on disk. The WAL is append-only, which makes writing to it very fast. If the system fails, the database can replay the WAL to reconstruct the Memtable's state up to the point of the crash, guaranteeing durability.</p>
+                    <div class="diagram-box mt-4 bg-blue-50 text-blue-800 border-blue-500">
+                        <span class="diagram-label">WAL State</span>
+                        <p class="text-xl font-bold mb-2">Disk (Durable!)</p>
+                        <p class="text-xs text-gray-500 mt-2">Example: PUT (Alice, 100) &rarr; PUT (Bob, 90) &rarr; PUT (Alice, 105)</p>
+                    </div>
+                </li>
+                <li>
+                    <h4 class="font-medium">Memory Size Limit &rarr; Dump to Disk as SSTable:</h4>
+                    <p class="text-sm">The Memtable has a configurable size limit. Once it reaches this threshold, it becomes immutable (read-only) and is "flushed" to disk. The contents of this now-frozen Memtable are efficiently converted into a sorted list of key-value pairs (an $O(N)$ operation for a balanced BST traversal) and written sequentially to a new, immutable file on disk called an <span class="term">SSTable (Sorted String Table)</span>. After the flush, the Memtable is cleared, and a new, empty Memtable is initialized to handle incoming writes.</p>
+                    <div class="diagram-box mt-4 bg-orange-50 text-orange-800 border-orange-500">
+                        <span class="diagram-label">SSTable (Disk File)</span>
+                        <p class="text-xl font-bold mb-2">Sorted, Immutable Data</p>
+                        <div class="mt-2 w-full text-left text-sm">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                            <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        </div>
+                    </div>
+                </li>
+                <li>
+                    <h4 class="font-medium">Reading Data:</h4>
+                    <p class="text-sm">When a read request comes in for a specific key, the LSM tree follows a hierarchical search strategy to find the most recent version of that key. It first checks the active in-memory Memtable. If the key is not found there, it then proceeds to search the on-disk SSTables, always starting from the newest SSTable and moving backward chronologically to older ones. This is because newer SSTables contain more recent data, overriding older versions. As soon as the key is found, the search stops, ensuring the latest value is returned. Each SSTable can be binary searched efficiently due to its sorted nature.</p>
+                    <div class="diagram-box mt-4 bg-gray-50 text-gray-800 border-gray-500">
+                        <span class="diagram-label">Read Path Hierarchy</span>
+                        <p class="text-xl font-bold mb-2">Search Order</p>
+                        <p class="text-sm">Memtable &rarr; Newest SSTable &rarr; Older SSTable 2 &rarr; Older SSTable 1</p>
+                        <p class="text-xs text-gray-500 mt-2">(Stop at first match)</p>
+                    </div>
+                </li>
+                <li>
+                    <h4 class="font-medium">Deletion with Tombstones:</h4>
+                    <p class="text-sm">Due to the immutable nature of SSTables, actual data cannot be physically removed from them. Instead, when a key is deleted, a special marker called a "<span class="term">tombstone</span>" is written. This tombstone is a new key-value pair where the value indicates a deletion (e.g., a null value or a flag). It is inserted into the Memtable and subsequently flushed to an SSTable just like any other write. During reads, if a tombstone is encountered for a key in a newer SSTable (or the Memtable), it signifies that the key has been logically deleted, and any older, live versions of that key in older SSTables are ignored.</p>
+                     <div class="diagram-box mt-4 bg-red-50 text-red-800 border-red-500">
+                        <span class="diagram-label">Tombstone Effect</span>
+                        <p class="text-xl font-bold mb-2">Logical Deletion</p>
+                        <p class="text-sm">SSTable_New: (Key, <span class="tombstone-value">TOMBSTONE</span>)</p>
+                        <p class="text-sm">SSTable_Old: (Key, Value)</p>
+                        <p class="text-md text-green-700 font-semibold mt-2">Result: Key is considered deleted (Newer tombstone overrides older value).</p>
+                    </div>
+                </li>
+                <li>
+                    <h4 class="font-medium">Optimizations (Sparse Index, Bloom Filter):</h4>
+                    <p class="text-sm">To mitigate the potential slowdown of reads (which might have to check multiple SSTables), LSM trees employ critical optimizations. A <span class="term">Sparse Index</span> for each SSTable stores a subset of keys and their disk offsets, allowing for quicker pinpointing of data ranges. A <span class="term">Bloom Filter</span> is a probabilistic data structure attached to each SSTable; it can quickly and accurately tell if a key is *definitely not* present in an SSTable, thus allowing the system to skip unnecessary disk I/O.</p>
+                </li>
+                <li>
+                    <h4 class="font-medium">Compaction:</h4>
+                    <p class="text-sm">This is a vital background process that continuously merges multiple SSTables into new, consolidated ones. The primary goals of <span class="term">compaction</span> are to reclaim disk space by removing duplicate versions of keys (keeping only the most recent) and physically purging keys that have been marked by tombstones. Compaction also helps maintain read performance by reducing the total number of SSTables that a read operation might need to check. This process happens asynchronously, like garbage collection, to minimize impact on foreground read/write operations.</p>
+                    <div class="diagram-box mt-4 bg-green-50 text-green-800 border-green-500">
+                        <span class="diagram-label">Compaction Process</span>
+                        <p class="text-xl font-bold mb-2">Merge & Deduplicate</p>
+                        <p class="text-sm">SSTable A + SSTable B &rarr; New SSTable C</p>
+                        <p class="text-xs text-gray-500 mt-2">(Removes old versions, tombstones)</p>
+                        <div class="mt-2 w-full text-left text-sm">
+                            <div class="data-entry"><span class="key">Alice (SS1):</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Alice (SS2):</span><span class="value">102</span></div>
+                            <p class="text-sm mt-2 font-bold text-blue-700">&darr; Becomes &darr;</p>
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">102</span></div>
+                        </div>
+                    </div>
+                </li>
+            </ol>
+        </div>
+
+        <!-- 1. The Memtable (In-Memory Component) - Retained for diagram and brief explanation -->
+        <div class="card">
+            <h2 class="subsection-title">1. The Memtable (In-Memory Component)</h2>
+            <p class="mb-4">
+                The <span class="term">Memtable</span> is the heart of an LSM Tree. It's a small, in-memory data structure (often a balanced binary search tree like a Red-Black Tree or AVL Tree) that handles all incoming writes (inserts, updates, deletes).
+            </p>
+            <p class="mb-4">
+                Every write operation is first recorded in a <span class="term">Write-Ahead Log (WAL)</span> on disk for durability, then applied to the Memtable. The WAL ensures that even if the system crashes, the data in the Memtable can be recovered by replaying the log.
+            </p>
+
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-6 md:space-y-0 md:space-x-8">
+                <div class="w-full md:w-1/2 lg:w-1/3">
+                    <div class="diagram-box border-emerald-500 bg-emerald-50 text-emerald-800">
+                        <span class="diagram-label">Memory</span>
+                        <p class="text-xl font-bold mb-2">Memtable</p>
+                        <p class="text-sm">(Balanced Binary Search Tree)</p>
+                        <div class="mt-4 w-full">
+                            <p class="text-gray-700">Initial State: Empty</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-3xl text-green-600 font-bold hidden md:block">&harr;</div>
+                <div class="w-full md:w-1/2 lg:w-1/3">
+                    <div class="diagram-box border-blue-500 bg-blue-50 text-blue-800">
+                        <span class="diagram-label">Disk</span>
+                        <p class="text-xl font-bold mb-2">Write-Ahead Log (WAL)</p>
+                        <p class="text-sm">(Append-Only, Sequential Writes)</p>
+                        <div class="mt-4 w-full">
+                            <p class="text-gray-700">Initial State: Empty</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Writing Data (Inserts & Updates) -->
+        <div class="card">
+            <h2 class="subsection-title">2. Writing Data (Inserts & Updates)</h2>
+            <p class="mb-4">
+                When data is written, it first goes to the WAL for durability, then to the Memtable for fast access. Updates are simply new entries with a more recent timestamp.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Write Operations</h3>
+                    <ul class="list-disc list-inside space-y-1 text-sm">
+                        <li>**Alice, 100:** User Alice score is 100.</li>
+                        <li>**Bob, 90:** User Bob score is 90.</li>
+                        <li>**Charlie, 110:** User Charlie score is 110.</li>
+                        <li>**Alice, 105:** Alice's score is updated to 105 (new entry).</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">State After Writes</h3>
+                    <div class="diagram-box">
+                        <span class="diagram-label">Memtable (Memory)</span>
+                        <div class="w-full text-left">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                            <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">(Simplified - actual BST structure applies ordering)</p>
+                    </div>
+                    <div class="arrow">&darr;</div>
+                    <div class="diagram-box">
+                        <span class="diagram-label">Write-Ahead Log (Disk)</span>
+                        <div class="w-full text-left text-sm">
+                            <p>PUT (Alice, 100)</p>
+                            <p>PUT (Bob, 90)</p>
+                            <p>PUT (Charlie, 110)</p>
+                            <p>PUT (Alice, 105)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Flushing to SS Tables -->
+        <div class="card">
+            <h2 class="subsection-title">3. Flushing to SS Tables (Sorted String Tables)</h2>
+            <p class="mb-4">
+                When the Memtable reaches a predefined size limit, it becomes read-only and is "flushed" to disk. The data is sorted (an efficient $O(N)$ operation for a BST) and written sequentially to a new, immutable file called an <span class="term">SS Table (Sorted String Table)</span>. A new, empty Memtable is then started.
+            </p>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-6 md:space-y-0 md:space-x-8">
+                <div class="w-full md:w-1/2 lg:w-1/3">
+                    <div class="diagram-box border-emerald-500 bg-emerald-50 text-emerald-800">
+                        <span class="diagram-label">Memtable (Memory)</span>
+                        <div class="w-full text-left">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                            <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-3xl text-purple-600 font-bold">&darr; FLUSH &darr;</div>
+                <div class="w-full md:w-1/2 lg:w-1/3">
+                    <div class="diagram-box border-orange-500 bg-orange-50 text-orange-800">
+                        <span class="diagram-label">SS Table (Disk)</span>
+                        <p class="text-xl font-bold mb-2">SS Table 1</p>
+                        <p class="text-sm">(Sorted & Immutable)</p>
+                        <div class="mt-4 w-full text-left">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                            <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="mt-6">As more data is written and Memtables are flushed, multiple SS Tables accumulate on disk, each sorted.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <div class="diagram-box border-orange-500 bg-orange-50 text-orange-800">
+                    <span class="diagram-label">Disk</span>
+                    <p class="text-xl font-bold">SS Table 1</p>
+                    <div class="mt-2 w-full text-left text-sm">
+                        <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                        <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                        <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                    </div>
+                </div>
+                <div class="diagram-box border-orange-500 bg-orange-50 text-orange-800">
+                    <span class="diagram-label">Disk</span>
+                    <p class="text-xl font-bold">SS Table 2</p>
+                    <div class="mt-2 w-full text-left text-sm">
+                        <div class="data-entry"><span class="key">Alice:</span><span class="value">102</span></div>
+                        <div class="data-entry"><span class="key">David:</span><span class="value">85</span></div>
+                        <div class="data-entry"><span class="key">Eve:</span><span class="value">95</span></div>
+                        <div class="data-entry"><span class="key">Frank:</span><span class="value">100</span></div>
+                    </div>
+                </div>
+                <div class="diagram-box border-emerald-500 bg-emerald-50 text-emerald-800">
+                    <span class="diagram-label">Memory</span>
+                    <p class="text-xl font-bold">Memtable (New)</p>
+                    <p class="text-gray-700 mt-2">Empty, ready for writes</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Reading Data -->
+        <div class="card">
+            <h2 class="subsection-title">4. Reading Data (Get Operations)</h2>
+            <p class="mb-4">
+                To retrieve a value, the system always checks the most recent data first.
+            </p>
+            <ol class="list-decimal list-inside space-y-2 mb-4">
+                <li>Check the **Memtable** first.</li>
+                <li>If not found, check **SS Tables** on disk, starting from the **newest** SS Table and going backwards to the oldest.</li>
+                <li>The first value found for a key is the correct one, as newer tables override older ones due to immutability.</li>
+            </ol>
+
+            <h3 class="text-lg font-semibold mb-2">Example Reads:</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="text-md font-medium text-gray-700">Read: Get (Eve)</h4>
+                    <ul class="list-disc list-inside text-sm mt-1">
+                        <li>Check Memtable: No.</li>
+                        <li>Check SS Table 2: Find `(Eve, 95)`. **Return 95.** (Fast, only 1 disk check)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-md font-medium text-gray-700">Read: Get (Charlie)</h4>
+                    <ul class="list-disc list-inside text-sm mt-1">
+                        <li>Check Memtable: No.</li>
+                        <li>Check SS Table 2: No.</li>
+                        <li>Check SS Table 1: Find `(Charlie, 110)`. **Return 110.** (Slightly slower, 2 disk checks)</li>
+                    </ul>
+                </div>
+                <div class="md:col-span-2">
+                    <h4 class="text-md font-medium text-gray-700">Read: Get (Alice)</h4>
+                    <ul class="list-disc list-inside text-sm mt-1">
+                        <li>Check Memtable: No.</li>
+                        <li>Check SS Table 2: Find `(Alice, 102)`. **Return 102.** (The value in SS Table 2 is newer than SS Table 1's Alice, 105, so we stop here).</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Deleting Data (Tombstones) -->
+        <div class="card">
+            <h2 class="subsection-title">5. Deleting Data (<span class="term">Tombstones</span>)</h2>
+            <p class="mb-4">
+                Since SS Tables are immutable, actual data cannot be removed directly. Instead, a special marker called a **tombstone** is written to indicate a key has been logically deleted.
+                This allows deletions to be propagated consistently across distributed systems and eventually cleaned up during compaction.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Delete Operation: Delete (Bob)</h3>
+                    <ul class="list-disc list-inside space-y-1 text-sm">
+                        <li>A new entry `(Bob, TOMBSTONE)` is created.</li>
+                        <li>This tombstone is written to the WAL and inserted into the Memtable.</li>
+                        <li>When the Memtable flushes, it becomes part of a new SS Table (e.g., SS Table 3).</li>
+                    </ul>
+                    <div class="diagram-box mt-4 bg-red-50 text-red-800 border-red-500">
+                        <span class="diagram-label">SS Table 3 (Disk)</span>
+                        <div class="w-full text-left">
+                            <div class="data-entry"><span class="key">Bob:</span><span class="tombstone-value">TOMBSTONE</span></div>
+                            <p class="text-xs text-gray-500 mt-2">(Other new data might be here too)</p>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Read After Delete: Get (Bob)</h3>
+                    <ul class="list-disc list-inside text-sm mt-1">
+                        <li>System checks Memtable: No.</li>
+                        <li>System checks SS Table 3: Finds `(Bob, TOMBSTONE)`.</li>
+                        <li>**Result: Key is considered deleted.** (Stops searching, even if an older `Bob, 90` exists in SS Table 1).</li>
+                    </ul>
+                    <div class="diagram-box mt-4">
+                        <span class="diagram-label">Conceptual Read Flow</span>
+                        <p class="mb-2">Memtable &rarr; SS Table 3 &rarr; SS Table 2 &rarr; SS Table 1</p>
+                        <p class="text-sm text-green-700 font-semibold">"Bob, TOMBSTONE" found in SS Table 3!</p>
+                        <p class="text-sm text-red-700 font-semibold mt-1">Result: Bob Not Found (Deleted)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. LSM Tree Optimizations -->
+        <div class="card">
+            <h2 class="subsection-title">6. LSM Tree Optimizations</h2>
+            <p class="mb-4">
+                To improve read performance and reduce unnecessary disk I/O, LSM trees employ several optimization techniques for their SS Tables.
+            </p>
+
+            <h3 class="text-lg font-semibold mb-2">Sparse Index</h3>
+            <p class="mb-4">
+                A <span class="term">Sparse Index</span> is a smaller, in-memory or cached index for each SS Table on disk. Instead of indexing every key, it stores only a subset of keys (e.g., every 100th key or keys at fixed byte intervals) along with their exact byte offsets or block numbers within the SS Table file.
+            </p>
+            <p class="mb-4">
+                When searching for a key, the system can first perform a fast binary search on this sparse index to quickly identify the small block or range within the large SS Table file where the key *might* reside. This significantly reduces the amount of data that needs to be read from disk, as it avoids scanning the entire SS Table. The actual data within that block is then scanned linearly or binary searched.
+            </p>
+            <div class="diagram-box bg-purple-50 text-purple-800 border-purple-500">
+                <span class="diagram-label">Sparse Index (Example)</span>
+                <p class="text-xl font-bold mb-2">SS Table Index for SS Table X</p>
+                <div class="mt-2 w-full text-left text-sm">
+                    <div class="data-entry"><span class="key">Adam:</span><span class="value">offset 0 (Block 0)</span></div>
+                    <div class="data-entry"><span class="key">Jordan:</span><span class="value">offset 1500 (Block 1)</span></div>
+                    <div class="data-entry"><span class="key">Quincy:</span><span class="value">offset 3000 (Block 2)</span></div>
+                    <div class="data-entry"><span class="key">Sam:</span><span class="value">offset 4500 (Block 3)</span></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">(If looking for "Dan", binary search the index to find it's between Adam & Jordan, then scan SS Table from Adam's offset/Block 0.)</p>
+            </div>
+
+            <h3 class="text-lg font-semibold mt-6 mb-2">Bloom Filter</h3>
+            <p class="mb-4">
+                A <span class="term">Bloom Filter</span> is a space-efficient, probabilistic data structure designed to quickly test whether an element is a member of a set. For LSM trees, a Bloom filter is associated with each SS Table. Before performing a potentially costly disk read to search an SS Table for a key, the system first queries its corresponding Bloom filter.
+            </p>
+            <ul class="list-disc list-inside space-y-1 mb-4">
+                <li>If the Bloom filter indicates that a key is **definitely not** in the SS Table, the system can immediately skip reading that entire SS Table file, saving significant disk I/O and speeding up the read operation. This is a guarantee – a false negative is impossible.</li>
+                <li>If the Bloom filter says a key **might be** in the SS Table, then the system proceeds to read and search the SS Table. It's important to note that there is a small, configurable chance of a "false positive" (the Bloom filter says the key might be there, but it's not). However, this is a trade-off for its high space efficiency and speed in ruling out non-existent keys.</li>
+            </ul>
+            <p class="mb-4">
+                Bloom filters are critical for reducing "read amplification" in LSM trees, especially when dealing with many SSTables or frequently querying for non-existent data.
+            </p>
+            <div class="diagram-box bg-indigo-50 text-indigo-800 border-indigo-500">
+                <span class="diagram-label">Bloom Filter (Concept)</span>
+                <p class="text-xl font-bold mb-2">Is 'Zebra' in SS Table 1?</p>
+                <p class="text-2xl mt-4">Bloom Filter says: <span class="font-bold text-green-700">NO!</span></p>
+                <p class="text-sm text-gray-600 mt-2">(Avoid expensive disk read for SS Table 1 as 'Zebra' is definitely not present)</p>
+            </div>
+        </div>
+
+        <!-- 7. Compaction -->
+        <div class="card">
+            <h2 class="subsection-title">7. Compaction: Cleaning Up Disk Space</h2>
+            <p class="mb-4">
+                Over time, as Memtables are flushed and updates/deletions occur, SS Tables accumulate older versions of data and tombstones. This leads to wasted disk space ("space amplification") and potentially slower reads (due to more tables needing to be checked, known as "read amplification"). <span class="term">Compaction</span> is a crucial background process that merges multiple existing SS Tables into a new, consolidated set of SS Tables.
+            </p>
+            <p class="mb-4">
+                During compaction, the system reads data from multiple source SSTables, performs a merge-sort-like operation, and writes the results to new SSTables. Key actions during this process include:
+            </p>
+            <ul class="list-disc list-inside space-y-1 mb-4">
+                <li>**Duplicate Resolution:** Only the **most recent version** of each key is kept. Older versions are discarded.</li>
+                <li>**Tombstone Elimination:** If a tombstone for a key is encountered, and there are no older, live versions of that key remaining in any of the SSTables being compacted, then both the older versions and the tombstone itself are physically removed from the new SSTable, permanently reclaiming that space.</li>
+                <li>**Space Reclamation:** By eliminating duplicates and tombstones, compaction significantly reduces the total disk space consumed by the database.</li>
+                <li>**Read Performance Improvement:** Fewer, larger SSTables mean read operations have fewer files to check, improving read performance over time.</li>
+            </ul>
+            <p class="mt-4 text-sm text-gray-600">
+                Compaction strategies vary (e.g., Leveling vs. Tiering), but the core goal is to balance write amplification (how many times data is rewritten during compaction), read amplification, and space amplification. This process happens asynchronously in the background to minimize impact on foreground user operations.
+            </p>
+
+            <h3 class="text-lg font-semibold mb-2">Example Compaction: Merging SS Table 1 and SS Table 2</h3>
+
+            <div class="flex flex-col items-center">
+                <div class="flex flex-col md:flex-row justify-center w-full space-y-4 md:space-y-0 md:space-x-8">
+                    <div class="diagram-box w-full md:w-1/2 bg-orange-50 border-orange-500">
+                        <span class="diagram-label">SS Table 1 (Older)</span>
+                        <div class="w-full text-left text-sm">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">105</span></div>
+                            <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                            <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        </div>
+                    </div>
+                    <div class="text-3xl text-blue-600 font-bold hidden md:block">&harr;</div>
+                    <div class="diagram-box w-full md:w-1/2 bg-orange-50 border-orange-500">
+                        <span class="diagram-label">SS Table 2 (Newer)</span>
+                        <div class="w-full text-left text-sm">
+                            <div class="data-entry"><span class="key">Alice:</span><span class="value">102</span></div>
+                            <div class="data-entry"><span class="key">David:</span><span class="value">85</span></div>
+                            <div class="data-entry"><span class="key">Eve:</span><span class="value">95</span></div>
+                            <div class="data-entry"><span class="key">Frank:</span><span class="value">100</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="arrow mt-6">&darr; COMPACT &darr;</div>
+                <div class="diagram-box w-full md:w-1/2 lg:w-1/3 bg-green-50 text-green-800 border-green-500">
+                    <span class="diagram-label">New Compacted SS Table (Disk)</span>
+                    <p class="text-xl font-bold mb-2">SS Table A</p>
+                    <div class="mt-2 w-full text-left text-sm">
+                        <div class="data-entry"><span class="key">Alice:</span><span class="value">102</span></div> <!-- Newer Alice wins -->
+                        <div class="data-entry"><span class="key">Bob:</span><span class="value">90</span></div>
+                        <div class="data-entry"><span class="key">Charlie:</span><span class="value">110</span></div>
+                        <div class="data-entry"><span class="key">David:</span><span class="value">85</span></div>
+                        <div class="data-entry"><span class="key">Eve:</span><span class="value">95</span></div>
+                        <div class="data-entry"><span class="key">Frank:</span><span class="value">100</span></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        (If 'Bob' had a tombstone in a newer table, he'd be removed entirely)
+                    </p>
+                </div>
+            </div>
+            <p class="mt-6 text-sm text-gray-600">
+                This process reclaims disk space and improves read performance by reducing the number of SS Tables that need to be scanned.
+            </p>
+        </div>
+
+        <!-- Conclusion -->
+        <div class="card">
+            <h2 class="subsection-title">Conclusion</h2>
+            <p class="mb-4">
+                LSM Trees offer a powerful approach to database indexing, excelling in write-intensive environments by leveraging sequential disk I/O. While reads can sometimes be slower due to checking multiple components, optimizations like Bloom filters and sparse indexes significantly mitigate this. Compaction ensures efficient disk space utilization and overall performance.
+            </p>
+
+            <h3 class="text-lg font-semibold mt-6 mb-2">🆚 Compared to Other Indexes</h3>
+            <table class="comparison-table rounded-lg overflow-hidden">
+                <thead>
+                    <tr>
+                        <th class="p-3">Index Type</th>
+                        <th class="p-3">Strengths</th>
+                        <th class="p-3">Weaknesses</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="p-3 font-semibold">Hash Index</td>
+                        <td class="p-3">Super fast O(1) lookups for exact keys, ideal for workloads with mostly point lookups.</td>
+                        <td class="p-3">Cannot efficiently handle range queries (e.g., "find all users with scores between 80 and 90"); the entire dataset must fit within the available RAM, limiting scalability.</td>
+                    </tr>
+                    <tr>
+                        <td class="p-3 font-semibold">B-Tree</td>
+                        <td class="p-3">Excellent for range queries due to their inherent sorted structure and ability to efficiently store data on disk. Well-suited for transactional workloads where reads are frequent and updates are often in-place.</td>
+                        <td class="p-3">Can suffer from slower write performance, especially for random writes, as they involve random disk I/O for updates and insertions (potentially requiring node splits and rebalancing on disk), which are slower than sequential writes.</td>
+                    </tr>
+                    <tr>
+                        <td class="p-3 font-semibold">LSM Tree</td>
+                        <td class="p-3">Highly optimized for fast writes by favoring sequential disk I/O and batching operations. Efficiently handles very large datasets that exceed RAM capacity. Supports range queries due to sorted SS Tables.</td>
+                        <td class="p-3">Reads can be slower than B-trees in certain scenarios due to the need to potentially check multiple SSTables to find the most recent version of a key ("read amplification"). Requires continuous background compaction to manage disk space and maintain read performance.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 class="text-lg font-semibold mt-6 mb-2">🏁 Summary</h3>
+            <p class="mb-4">LSM Trees are ideal when:</p>
+            <ul class="list-disc list-inside mb-4">
+                <li>You have high write volume (e.g., logging, sensor data, time-series data).</li>
+                <li>You’re okay with slightly variable read latency (though optimized by Bloom filters and sparse indexes).</li>
+                <li>You need to scale beyond memory and optimize for disk I/O (especially SSDs, where sequential writes are highly performant).</li>
+            </ul>
+            <p class="mb-2">Used in databases and storage engines like:</p>
+            <ul class="list-disc list-inside">
+                <li>LevelDB, RocksDB (Google's open-source key-value stores)</li>
+                <li>Apache Cassandra (distributed NoSQL database)</li>
+                <li>InfluxDB (time-series database)</li>
+                <li>ScyllaDB (high-performance NoSQL database)</li>
+            </ul>
+        </div>
+
+    </div>
+
+</body>
+</html>
