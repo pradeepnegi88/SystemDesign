@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Systems Design Fundamentals: An Illustrated Guide</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Apply Inter as the default font */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Use a monospaced font for code blocks */
+        pre, code {
+            font-family: 'Fira Code', monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-300">
+
+    <!-- Main Container -->
+    <div class="container mx-auto max-w-4xl px-4 py-8 md:py-12">
+
+        <!-- Header Section -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">Systems Design Fundamentals</h1>
+            <p class="text-lg text-cyan-400">From One User to Millions</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="space-y-12">
+
+            <!-- Introduction Section -->
+            <section>
+                <h2 class="text-3xl font-bold text-white border-b-2 border-cyan-500 pb-2 mb-6">Introduction to Systems Design</h2>
+                <p class="mb-4 text-lg leading-relaxed">
+                    At its core, <strong>Systems Design</strong> is the art and science of architecting the components of a large-scale application. The primary challenge arises from <strong>scale</strong>. A simple application that works perfectly for a hundred users will crash and burn under the load of a million users. System design is about planning for that success.
+                </p>
+            </section>
+
+            <!-- The Core Problem Section -->
+            <section>
+                <h3 class="text-2xl font-semibold text-white mb-4">The Core Problem: The Limits of a Single Server</h3>
+                <p class="mb-6 leading-relaxed">
+                    Imagine you build a social media site. Initially, you run it on a single computer (a server). This server does everything: it runs the application logic, communicates with users, and stores all the data (profiles, posts, photos) on its hard drive.
+                </p>
+                <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 mb-6 whitespace-pre-wrap text-center"><code>
+  +-------------------+
+  |   Single Server   |
+  | (App + Database)  |
+  +-------------------+
+         ^      |
+         |      |
+  Request|      | Response
+         |      v
+  +-------------------+
+  |       Users       |
+  +-------------------+
+                </code></pre>
+                <p class="mb-6 leading-relaxed">
+                    This works fine for a small number of users. But as you become popular, thousands of requests hit your server every second. It gets overwhelmed, slows down, and eventually crashes. The first step is to add more application servers to handle the incoming traffic. But this introduces a new, critical problem: <strong>Where does the data live?</strong>
+                </p>
+                <p class="leading-relaxed">
+                    If User A's data is on Server 1, and their request gets routed to Server 2, Server 2 has no way to access that data. This is the fundamental motivation for separating the application from the data.
+                </p>
+            </section>
+            
+            <!-- The Solution Section -->
+            <section>
+                <h3 class="text-2xl font-semibold text-white mb-4">The Solution: Decoupling the Database</h3>
+                <p class="mb-6 leading-relaxed">
+                    We move the data to its own dedicated server: a <strong>database</strong>. Now, all application servers can talk to this single, central database. It becomes the <strong>single source of truth</strong>.
+                </p>
+                <ul class="list-disc list-inside space-y-3 mb-6 bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                    <li><strong>Client:</strong> The user's device (phone, web browser).</li>
+                    <li><strong>Application Server:</strong> Handles user authentication, business logic, and constructs the pages to be sent to the user. They are <strong>stateless</strong>.</li>
+                    <li><strong>Database Server:</strong> Its only job is to store and retrieve data efficiently and reliably. It is <strong>stateful</strong>.</li>
+                </ul>
+                <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 mb-6 whitespace-pre-wrap text-center"><code>
+    +--------+      +------------------+      +----------+
+    | Client |----->| App Server 1     |----->|          |
+    +--------+      +------------------+      |          |
+                                              |          |
+    +--------+      +------------------+      | Database |
+    | Client |----->| App Server 2     |----->|  Server  |
+    +--------+      +------------------+      | (Source  |
+                                              | of Truth)|
+    +--------+      +------------------+      |          |
+    | Client |----->| App Server 3     |----->|          |
+    +--------+      +------------------+      +----------+
+                </code></pre>
+                <p class="leading-relaxed">
+                    Now, no matter which App Server a user's request hits, it can get the correct data from the central database. This architecture is scalable and consistent. But this creates a new bottleneck: the database itself. The rest of this guide focuses on making the database fast and reliable.
+                </p>
+            </section>
+
+            <!-- Database Internals Section -->
+            <section>
+                <h2 class="text-3xl font-bold text-white border-b-2 border-cyan-500 pb-2 mb-6">Database Internals: The Quest for Fast Data Access</h2>
+                <p class="mb-6 text-lg leading-relaxed">
+                    Simply storing data in a file isn't good enough. As the table grows to millions or billions of rows, finding the specific data you need becomes incredibly slow.
+                </p>
+
+                <h3 class="text-2xl font-semibold text-white mb-4">The Slow Path: The Full Table Scan</h3>
+                <p class="mb-4 leading-relaxed">
+                    Without any optimizations, the only way for a database to find a row is to look at every single row, one by one, from top to bottom. This is a <strong>Full Table Scan</strong>, an operation with $O(n)$ time complexity.
+                </p>
+                <p class="mb-4 leading-relaxed"><strong>Example:</strong> Find Shaq's shoe size in the following table.</p>
+                
+                <!-- Table Example -->
+                <div class="overflow-x-auto rounded-lg border border-gray-700 mb-6">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-800 text-white">
+                            <tr>
+                                <th class="p-3">Row</th>
+                                <th class="p-3">Name</th>
+                                <th class="p-3">ShoeSize</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="bg-gray-900 border-t border-gray-700">
+                                <td class="p-3">1</td>
+                                <td class="p-3">Jordan</td>
+                                <td class="p-3">18</td>
+                            </tr>
+                            <tr class="bg-gray-800 border-t border-gray-700">
+                                <td class="p-3">2</td>
+                                <td class="p-3">Donald</td>
+                                <td class="p-3">7</td>
+                            </tr>
+                            <tr class="bg-gray-900 border-t border-gray-700">
+                                <td class="p-3">3</td>
+                                <td class="p-3">Shaq</td>
+                                <td class="p-3">24</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="mb-6 leading-relaxed">The database performs these steps:</p>
+                <ol class="list-decimal list-inside space-y-2 mb-6">
+                    <li><strong>Read Row 1:</strong> Is `Name == 'Shaq'`? No.</li>
+                    <li><strong>Read Row 2:</strong> Is `Name == 'Shaq'`? No.</li>
+                    <li><strong>Read Row 3:</strong> Is `Name == 'Shaq'`? Yes. Return `ShoeSize = 24`.</li>
+                </ol>
+                <p class="leading-relaxed">
+                    This is fast for 3 rows, but for 3 billion rows, it's a disaster. To solve this, we use <strong>indexes</strong>.
+                </p>
+            </section>
+            
+            <!-- Database Indexes Section -->
+            <section>
+                <h2 class="text-3xl font-bold text-white border-b-2 border-cyan-500 pb-2 mb-6">Database Indexes: The Textbook Analogy</h2>
+                <p class="mb-8 text-lg leading-relaxed">
+                    A database index is a separate data structure that allows for much faster data retrieval, much like the index at the back of a textbook. Instead of reading the whole book to find a topic, you look it up in the index and are given the exact page numbers. There are different ways to build this index, each with its own trade-offs.
+                </p>
+                
+                <!-- Hash Index -->
+                <div>
+                    <h3 class="text-2xl font-semibold text-white mb-4">1. The Hash Index</h3>
+                    <p class="mb-4 leading-relaxed">A Hash Index uses an in-memory <strong>hash map</strong> to map an indexed key directly to its location on disk. Its strength is incredibly fast direct lookups ($O(1)$).</p>
+                    <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 my-6 whitespace-pre-wrap"><code>
+  Key: "Shaq" ---&gt; +---------------+ ---&gt; Memory Address: 87
+                   | Hash Function |
+                   +---------------+
+                           |
+                           v
+                 MEMORY (RAM - The Hash Map)
+            +--------------------------------------+
+  Index...  | "Jordan": ptr_1 |...| "Shaq": ptr_3 | ...
+            +--------------------------------------+
+      Address:      42             87
+                                   |
+                                   v
+                     DISK (The Actual Table Data)
+            +--------------------------------------+
+   ptr_3 ---&gt; | Row 3: [ Shaq | 24 ]             |
+            +--------------------------------------+
+                    </code></pre>
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">Trade-offs of Hash Indexes:</h4>
+                    <ul class="space-y-3">
+                        <li><strong class="text-green-400">Pro:</strong> Extremely Fast Reads & Writes ($O(1)$) for direct key lookups.</li>
+                        <li><strong class="text-red-400">Con:</strong> The entire index must fit in memory (RAM), which is expensive and limited.</li>
+                        <li><strong class="text-red-400">Con:</strong> No support for range queries. Finding names "between A and B" is impossible to do efficiently.</li>
+                    </ul>
+                </div>
+                
+                <!-- B-Tree Index -->
+                <div class="mt-12">
+                    <h3 class="text-2xl font-semibold text-white mb-4">2. The B-Tree Index</h3>
+                    <p class="mb-4 leading-relaxed">The B-Tree (Balanced Tree) is the most common database index. It's a self-balancing tree structure stored entirely on disk. It's composed of fixed-size blocks called **pages** (or nodes), which contain sorted key ranges and references to other pages on disk. This structure is excellent for both direct lookups ($O(\log n)$) and range queries.</p>
+                    
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">The Write Process: Node Splitting</h4>
+                    <p class="mb-4 leading-relaxed">The B-Tree maintains its balance through a clever write process. When adding a new key (e.g., "Betty"):</p>
+                    <ol class="list-decimal list-inside space-y-2 mb-6">
+                        <li>The tree is traversed to find the correct leaf page where "Betty" should reside.</li>
+                        <li><strong>If the page has space:</strong> The key is added, the page is re-sorted, and written back to disk. This is a relatively simple operation.</li>
+                        <li><strong>If the page is full:</strong> This is where it gets complex. The full page is **split** into two separate pages, and the data is divided between them. Then, the parent page must be updated with new key ranges and pointers to these two new child pages.</li>
+                    </ol>
+
+                    <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 my-6 whitespace-pre-wrap"><code>
+// 1. Leaf page is full
++-----------------------------------+
+| Parent (Points to one page)       |
++-----------------------------------+
+                  |
+                  v
++-----------------------------------+
+| Leaf: [Adam, Bob, Charles, Dave]  |  &lt;-- Page is full
++-----------------------------------+
+
+// 2. We try to add "Betty". The leaf must split.
++-----------------------------------+
+| Parent (Must be updated)          |
++-----------------------------------+
+                  |
+     +------------+------------+
+     v                         v
++--------------+        +---------------+
+| Leaf 1:      |        | Leaf 2:       |
+| [Adam, Betty]|        | [Bob, Charles,|
++--------------+        |      Dave]    | &lt;-- ERROR: Parent doesn't point here yet!
+                        +---------------+
+                    </code></pre>
+                    <p class="mb-4 leading-relaxed">This splitting can cascade. If the parent page is also full, it must also split, and so on, potentially all the way up to the root. If the root splits, a new root is created, and the tree's height increases by one.</p>
+
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">Durability and the Write-Ahead Log (WAL)</h4>
+                     <p class="mb-4 leading-relaxed">What happens if the computer crashes mid-update, after splitting the leaf but before updating the parent's pointer? The index is now corrupted. To prevent this, B-Trees use a <strong>Write-Ahead Log (WAL)</strong>.</p>
+                     <p class="leading-relaxed">Before any page on disk is modified, the intended change is first written to a simple, sequential log file (the WAL). If a crash occurs, the database can replay this log upon restart to bring the B-Tree back to a consistent and valid state.</p>
+
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">Trade-offs of B-Trees:</h4>
+                    <ul class="space-y-3">
+                        <li><strong class="text-green-400">Pro:</strong> Excellent for Range Queries. Its primary advantage.</li>
+                        <li><strong class="text-green-400">Pro:</strong> Scales to huge datasets because the index lives on disk.</li>
+                        <li><strong class="text-green-400">Pro:</strong> Fast Lookups ($O(\log n)$), even for billions of rows.</li>
+                        <li><strong class="text-red-400">Con:</strong> Slower Writes than a hash index. A single logical write might require multiple disk I/O operations due to cascading node splits and writes to the WAL.</li>
+                    </ul>
+                </div>
+            </section>
+            
+            <!-- BEYOND A SINGLE DATABASE -->
+            <section>
+                <h2 class="text-3xl font-bold text-white border-b-2 border-cyan-500 pb-2 mb-6">Beyond a Single Database: Reliability & Scale</h2>
+                <p class="mb-8 text-lg leading-relaxed">
+                    Our indexed database is fast, but it still has two major weaknesses: it's a <strong>single point of failure</strong> (if it dies, the whole site is down), and it can't scale forever (one machine can only hold so much data). We solve these problems with Replication and Sharding.
+                </p>
+
+                <!-- Replication -->
+                <div>
+                    <h3 class="text-2xl font-semibold text-white mb-4">1. Making the Database Reliable: Replication</h3>
+                    <p class="mb-4 leading-relaxed">Replication means keeping multiple copies of your data on different machines. The most common model is <strong>Leader-Follower</strong> (or Master-Slave) replication.</p>
+                     <ul class="list-disc list-inside space-y-3 mb-6 bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                        <li><strong>Leader (Master):</strong> The main database. It is the only one that can accept <strong>writes</strong> (inserts, updates, deletes).</li>
+                        <li><strong>Followers (Slaves):</strong> Identical copies of the leader. They receive a log of all changes from the leader and apply them to their own copy of the data. They can only serve <strong>reads</strong>.</li>
+                    </ul>
+                    <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 my-6 whitespace-pre-wrap text-center"><code>
+  App Servers --- Write traffic ---> +----------------+
+                                     | Leader DB      |
+                                     +----------------+
+                                             |
+                                    Replication Log
+                                             |
+                 +---------------------------+---------------------------+
+                 v                           v                           v
+      +----------------+          +----------------+          +----------------+
+      | Follower DB 1  |          | Follower DB 2  |          | Follower DB 3  |
+      +----------------+          +----------------+          +----------------+
+              ^                           ^                           ^
+              |                           |                           |
+              '---------- Read traffic ---'---------------------------'
+
+                    </code></pre>
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">Benefits of Replication:</h4>
+                    <ul class="space-y-3">
+                        <li><strong class="text-green-400">Fault Tolerance:</strong> If the leader database fails, one of the followers can be automatically promoted to be the new leader. The site stays online!</li>
+                        <li><strong class="text-green-400">Read Scaling:</strong> Since most applications have far more reads than writes, you can distribute the read traffic across many follower databases, increasing your read throughput significantly.</li>
+                    </ul>
+                </div>
+                
+                 <!-- Sharding -->
+                <div class="mt-12">
+                    <h3 class="text-2xl font-semibold text-white mb-4">2. Scaling the Database: Sharding (Partitioning)</h3>
+                    <p class="mb-4 leading-relaxed">Replication solves reliability, but every replica still has to hold a full copy of the entire dataset. What if your data is too big for a single machine? The answer is <strong>Sharding</strong>.</p>
+                    <p class="mb-4 leading-relaxed">Sharding is the process of horizontally splitting a large database into smaller, more manageable parts called **shards**. Each shard is its own independent database, holding a subset of the total data.</p>
+                     <pre class="bg-gray-800 text-sm text-gray-400 rounded-lg p-4 my-6 whitespace-pre-wrap text-center"><code>
+                               +----------------+
+                               |  App Server /  |
+                               | Routing Logic  |
+                               +----------------+
+                                       |
+    (e.g., hash(user_id) % 2)          |
+             +-------------------------+-------------------------+
+             v                                                   v
+   +---------------------+                             +---------------------+
+   | DB Shard 0          |                             | DB Shard 1          |
+   | (Users A-M)         |                             | (Users N-Z)         |
+   | - Adam's Data       |                             | - Nancy's Data      |
+   | - Betty's Data      |                             | - Shaq's Data       |
+   +---------------------+                             +---------------------+
+                    </code></pre>
+                    <h4 class="text-xl font-medium text-white mt-6 mb-3">Key Concepts of Sharding:</h4>
+                    <ul class="space-y-3">
+                        <li><strong class="text-green-400">Horizontal Scaling:</strong> It allows you to scale your database across many machines, providing almost limitless storage and write capacity.</li>
+                        <li><strong class="text-cyan-400">Shard Key:</strong> You need a rule to decide which shard gets which piece of data. This rule is based on a "shard key". A common strategy is to shard by `user_id`.</li>
+                        <li><strong class="text-red-400">Increased Complexity:</strong> Sharding adds significant complexity. Queries that need to access data across multiple shards (e.g., joining data from User A and User Z) become difficult and slow. You must design your system to avoid cross-shard joins.</li>
+                    </ul>
+                </div>
+
+            </section>
+        </main>
+    </div>
+</body>
+</html>
