@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACID Transactions Explained: The Pillar of Reliable Databases</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles to enhance Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+        }
+        .diagram-container {
+            border: 1px solid #e2e8f0; /* slate-200 */
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        h1, h2, h3 {
+            letter-spacing: -0.02em;
+        }
+        .code-block {
+            background-color: #1e293b; /* slate-800 */
+            color: #e2e8f0; /* slate-200 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <!-- Header Section -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
+                <span class="text-indigo-600">🔒</span> ACID Transactions Explained
+            </h1>
+            <p class="mt-4 text-lg md:text-xl text-slate-600">The Pillar of Reliable Databases</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        
+        <!-- Introduction -->
+        <section class="mb-12 text-center">
+            <p class="text-lg leading-relaxed max-w-3xl mx-auto">
+                When designing robust systems, one of the most critical topics you’ll encounter is **ACID transactions**. If you’ve heard the term thrown around but never fully unpacked it — this page is for you. Let’s break down what ACID means, why it matters, and how databases make it work.
+            </p>
+        </section>
+
+        <!-- What are ACID Transactions? -->
+        <section class="mb-16 card p-8">
+            <h2 class="text-3xl font-bold text-slate-900 mb-4">🚦 What Are ACID Transactions?</h2>
+            <p class="text-lg">
+                ACID is an acronym that defines four key properties that ensure reliable processing of database transactions. These properties are abstractions that databases provide to guarantee that your data stays accurate, consistent, and safe, even when multiple users are reading and writing at the same time (a common scenario as databases are multi-threaded servers) — or when systems fail unexpectedly.
+            </p>
+        </section>
+
+        <!-- The Four ACID Properties -->
+        <div class="space-y-12">
+
+            <!-- 1. Atomicity -->
+            <article class="card p-6 md:p-8">
+                <h3 class="text-3xl font-bold text-slate-900 mb-2">1️⃣ Atomicity</h3>
+                <p class="text-xl font-semibold text-indigo-600 mb-4">“All or nothing.”</p>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <p class="mb-4">Atomicity means a transaction’s operations are treated as a single, indivisible unit. Either every operation in the transaction succeeds, or none do.</p>
+                        <p class="font-semibold">Example: Transferring $10</p>
+                        <ul class="list-disc list-inside ml-4 mt-2 space-y-1">
+                            <li>Your balance must decrease by $10.</li>
+                            <li>Your friend's balance must increase by $10.</li>
+                        </ul>
+                         <p class="mt-4">If only one part succeeds, money would be created or destroyed. Atomicity guarantees this can’t happen by rolling back the entire transaction if any part fails.</p>
+                    </div>
+                    <!-- Atomicity Diagram -->
+                    <div class="diagram-container rounded-lg p-4">
+                        <svg viewBox="0 0 300 180" class="w-full h-auto" aria-labelledby="atomicity-title">
+                           <title id="atomicity-title">Diagram of Atomicity</title>
+                           <defs>
+                               <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#4f46e5"/></marker>
+                           </defs>
+                           <!-- Initial State -->
+                           <text x="150" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="#334155">Initial State</text>
+                           <rect x="20" y="25" width="80" height="40" rx="5" fill="#fff" stroke="#94a3b8"/>
+                           <text x="60" y="45" text-anchor="middle" font-size="10">Account A</text>
+                           <text x="60" y="58" text-anchor="middle" font-size="10" font-weight="bold">$100</text>
+                           <rect x="200" y="25" width="80" height="40" rx="5" fill="#fff" stroke="#94a3b8"/>
+                           <text x="240" y="45" text-anchor="middle" font-size="10">Account B</text>
+                           <text x="240" y="58" text-anchor="middle" font-size="10" font-weight="bold">$50</text>
+                           
+                           <!-- Transaction -->
+                           <path d="M 105,45 Q 150,80 195,45" stroke="#4f46e5" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                           <text x="150" y="75" text-anchor="middle" font-size="9" fill="#4f46e5" font-weight="bold">TRANSFER $10</text>
+                           
+                           <!-- Success Case -->
+                           <text x="75" y="100" text-anchor="middle" font-size="10" font-weight="bold" fill="#16a34a">SUCCESS (Commit)</text>
+                           <rect x="20" y="110" width="60" height="30" rx="5" fill="#dcfce7"/>
+                           <text x="50" y="128" text-anchor="middle" font-size="9">$90</text>
+                           <rect x="90" y="110" width="60" height="30" rx="5" fill="#dcfce7"/>
+                           <text x="120" y="128" text-anchor="middle" font-size="9">$60</text>
+                           
+                           <!-- Failure Case -->
+                           <text x="225" y="100" text-anchor="middle" font-size="10" font-weight="bold" fill="#dc2626">FAILURE (Rollback)</text>
+                           <rect x="170" y="110" width="60" height="30" rx="5" fill="#fee2e2"/>
+                           <text x="200" y="128" text-anchor="middle" font-size="9">$100</text>
+                           <rect x="240" y="110" width="60" height="30" rx="5" fill="#fee2e2"/>
+                           <text x="270" y="128" text-anchor="middle" font-size="9">$50</text>
+                           
+                           <line x1="150" y1="90" x2="150" y2="170" stroke-dasharray="2,2" stroke="#cbd5e1"/>
+                        </svg>
+                    </div>
+                </div>
+            </article>
+
+            <!-- 2. Consistency -->
+            <article class="card p-6 md:p-8">
+                <h3 class="text-3xl font-bold text-slate-900 mb-2">2️⃣ Consistency</h3>
+                <p class="text-xl font-semibold text-indigo-600 mb-4">“The database stays in a valid state.”</p>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <p class="mb-4">Consistency ensures that a transaction brings the database from one valid state to another, always following defined rules, constraints, and invariants. It ensures the database doesn't fail partway through a write and end up in a corrupted, absurd state.</p>
+                        <p class="font-semibold">Example 1: Account Balance Rule</p>
+                        <p class="mt-2 mb-4">A bank rule states an account balance cannot be negative. A transaction attempting to withdraw $200 from an account with $100 will be blocked, preserving the database's consistency.</p>
+                        <p class="font-semibold">Example 2: Application Invariant</p>
+                        <p class="mt-2">An application requires an on-duty security guard at all times. A transaction to swap guards (e.g., remove Larry, add Oscar) must be atomic. If it fails midway, consistency ensures the database rolls back to a state where there is still a guard on duty.</p>
+                    </div>
+                    <!-- Consistency Diagram -->
+                    <div class="diagram-container rounded-lg p-4">
+                        <svg viewBox="0 0 300 150" class="w-full h-auto" aria-labelledby="consistency-title">
+                            <title id="consistency-title">Diagram of Consistency</title>
+                            <!-- Valid State 1 -->
+                            <g>
+                                <circle cx="50" cy="75" r="30" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+                                <text x="50" y="70" text-anchor="middle" font-size="8" font-weight="bold">Valid State</text>
+                                <text x="50" y="82" text-anchor="middle" font-size="8">Balance: $100</text>
+                            </g>
+                            
+                            <!-- Transaction Arrow -->
+                            <path d="M 85,75 H 145" stroke="#4f46e5" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                            <text x="115" y="65" text-anchor="middle" font-size="8" fill="#4f46e5">Withdraw $50</text>
+                            
+                            <!-- Valid State 2 -->
+                            <g>
+                                <circle cx="180" cy="75" r="30" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+                                <text x="180" y="70" text-anchor="middle" font-size="8" font-weight="bold">Valid State</text>
+                                <text x="180" y="82" text-anchor="middle" font-size="8">Balance: $50</text>
+                            </g>
+
+                            <!-- Invalid Transaction Arrow -->
+                             <path d="M 50,110 Q 150,150 250,110" stroke="#dc2626" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+                             <text x="150" y="140" text-anchor="middle" font-size="8" fill="#dc2626">Withdraw $200 (Blocked)</text>
+
+                            <!-- Invalid State (Blocked) -->
+                            <g>
+                                <circle cx="250" cy="75" r="30" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+                                <text x="250" y="70" text-anchor="middle" font-size="8" font-weight="bold">Invalid State</text>
+                                <text x="250" y="82" text-anchor="middle" font-size="8">Balance: -$100</text>
+                                <line x1="230" y1="55" x2="270" y2="95" stroke="#dc2626" stroke-width="3"/>
+                                <line x1="230" y1="95" x2="270" y2="55" stroke="#dc2626" stroke-width="3"/>
+                            </g>
+                        </svg>
+                    </div>
+                </div>
+            </article>
+
+            <!-- 3. Isolation -->
+            <article class="card p-6 md:p-8">
+                <h3 class="text-3xl font-bold text-slate-900 mb-2">3️⃣ Isolation</h3>
+                <p class="text-xl font-semibold text-indigo-600 mb-4">“Transactions happen independently.”</p>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <p class="mb-4">Isolation means that even when transactions are executed concurrently, they appear to run sequentially. It prevents race conditions where two operations interfere with each other and corrupt data. The strongest level of isolation is called **Serializability**.</p>
+                        <p class="font-semibold">Example: Concurrent Deposits</p>
+                        <p class="mt-2">Two users deposit $100 into the same account (initial balance: $500). Without isolation, both might read $500, add $100, and write back $600, losing one deposit. With isolation, one transaction will complete first, and the second will see the updated balance, resulting in a correct final balance of $700.</p>
+                    </div>
+                     <!-- Isolation Diagram -->
+                    <div class="diagram-container rounded-lg p-4">
+                        <svg viewBox="0 0 300 180" class="w-full h-auto" aria-labelledby="isolation-title">
+                            <title id="isolation-title">Diagram of Isolation</title>
+                             <!-- No Isolation -->
+                            <text x="75" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="#dc2626">Without Isolation (Wrong)</text>
+                            <text x="40" y="30" text-anchor="middle" font-size="9">User A</text>
+                            <text x="110" y="30" text-anchor="middle" font-size="9">User B</text>
+                            <text x="75" y="50" text-anchor="middle" font-size="9">Read Bal: $500</text>
+                            <path d="M 40,35 v 20 M 110,35 v 20" stroke="#94a3b8" stroke-width="1"/>
+                            <path d="M 40,55 l 35,0 M 110,55 l -35,0" stroke="#94a3b8" stroke-width="1"/>
+                            <text x="40" y="75" text-anchor="middle" font-size="9">Write Bal: $600</text>
+                            <text x="110" y="75" text-anchor="middle" font-size="9">Write Bal: $600</text>
+                            <path d="M 40,60 v 20 M 110,60 v 20" stroke="#94a3b8" stroke-width="1"/>
+                            <rect x="40" y="90" width="70" height="25" rx="5" fill="#fee2e2"/>
+                            <text x="75" y="105" text-anchor="middle" font-size="10" font-weight="bold">Final: $600 ❌</text>
+                            
+                            <!-- With Isolation -->
+                            <text x="225" y="15" text-anchor="middle" font-size="10" font-weight="bold" fill="#16a34a">With Isolation (Correct)</text>
+                            <text x="200" y="30" text-anchor="middle" font-size="9">User A</text>
+                            <text x="250" y="55" text-anchor="middle" font-size="9">User B (Waits)</text>
+                            <rect x="230" y="60" width="40" height="45" rx="3" fill="#e0e7ff" stroke="#a5b4fc"/>
+                            <text x="180" y="45" text-anchor="middle" font-size="9">Read: $500</text>
+                            <text x="180" y="65" text-anchor="middle" font-size="9">Write: $600</text>
+                            <path d="M 200,35 v 35" stroke="#94a3b8" stroke-width="1"/>
+                            
+                            <text x="270" y="80" text-anchor="middle" font-size="9">Read: $600</text>
+                            <text x="270" y="100" text-anchor="middle" font-size="9">Write: $700</text>
+                             <path d="M 250,60 v 45" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,2"/>
+                             <path d="M 250,105 v -30" stroke="#94a3b8" stroke-width="1"/>
+                            
+                            <rect x="190" y="120" width="70" height="25" rx="5" fill="#dcfce7"/>
+                            <text x="225" y="135" text-anchor="middle" font-size="10" font-weight="bold">Final: $700 ✅</text>
+
+                            <line x1="150" y1="5" x2="150" y2="175" stroke="#cbd5e1"/>
+                        </svg>
+                    </div>
+                </div>
+            </article>
+
+            <!-- 4. Durability -->
+            <article class="card p-6 md:p-8">
+                <h3 class="text-3xl font-bold text-slate-900 mb-2">4️⃣ Durability</h3>
+                <p class="text-xl font-semibold text-indigo-600 mb-4">“Committed data stays committed.”</p>
+                <div class="grid md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <p class="mb-4">Durability guarantees that once a transaction is committed, it stays committed — even if the system crashes moments later. The data is now permanent, assuming the storage hardware (e.g., hard drive) remains functional.</p>
+                        <p class="font-semibold">Example: Power Failure</p>
+                        <p class="mt-2">You transfer money and get a confirmation. Moments later, the server loses power. Durability ensures your transaction isn't lost. When the system reboots, the data reflects the completed transfer, often by replaying a transaction log. In-memory databases may require special replication or logging to ensure this property.</p>
+                    </div>
+                    <!-- Durability Diagram -->
+                    <div class="diagram-container rounded-lg p-4">
+                        <svg viewBox="0 0 300 150" class="w-full h-auto" aria-labelledby="durability-title">
+                           <title id="durability-title">Diagram of Durability</title>
+                           <!-- Step 1: Commit -->
+                           <rect x="10" y="30" width="100" height="40" rx="5" fill="#e0e7ff"/>
+                           <text x="60" y="55" text-anchor="middle" font-size="9">1. Transaction Commit</text>
+                           
+                           <!-- Arrow to Log -->
+                           <path d="M 115,50 h 40" stroke="#4f46e5" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+                           
+                           <!-- Step 2: Write to Log -->
+                           <rect x="160" y="30" width="130" height="40" rx="5" fill="#e0e7ff"/>
+                           <text x="225" y="50" text-anchor="middle" font-size="9">2. Write to Transaction Log</text>
+                           <text x="225" y="62" text-anchor="middle" font-size="8" fill="#4338ca">(Persistent Storage)</text>
+                           
+                           <!-- System Crash -->
+                           <g transform="translate(150, 100) scale(0.15)">
+                               <path fill="#dc2626" d="M128.59,3c-5.43,0-10.45,1.21-15.17,3.43L0,113.43l12.83,23.33,26.8-46.42h77.73l26.8,46.42,12.83-23.33L143.76,6.43C139,4.21,134,3,128.59,3Zm-6.28,29.92h-24.8l37.2-64.42,37.2,64.42h-24.8l-12.4-21.48-12.4,21.48Z M199.17,152.17l-24.1-41.74h49.61l-25.51,41.74Z M82.25,110.43,58.15,152.17,32.64,110.43Z M128.59,167.58 a15.4,15.4 0 1,1 15.4,15.4,15.41,15.41 0 0,1 -15.4,-15.4Z"/>
+                           </g>
+                           <text x="150" y="145" text-anchor="middle" font-size="10" fill="#dc2626" font-weight="bold">System Crash!</text>
+                           
+                           <!-- Arrow to Restore -->
+                            <path d="M 225,75 v 45 q -20,25 -75,25 q -55,0 -75,-25 v -45" stroke="#16a34a" stroke-width="2" fill="none" stroke-dasharray="4,4"/>
+                            <text x="150" y="85" text-anchor="middle" font-size="9" fill="#16a34a">Recovery</text>
+                        </svg>
+                    </div>
+                </div>
+            </article>
+        </div>
+        
+        <!-- How Databases Implement ACID -->
+        <section class="mt-16 card p-8">
+            <h2 class="text-3xl font-bold text-slate-900 mb-4">🗂️ How Databases Implement ACID</h2>
+            <p class="text-lg mb-6">
+                One popular tool to achieve atomicity, consistency, and durability is the **Write-Ahead Log (WAL)**. Before any changes are made to the database itself, the intended operations are first written to a persistent log file. Only after the log is successfully updated is the transaction considered "committed."
+            </p>
+             <div class="diagram-container rounded-lg p-6 mb-6">
+                <h4 class="text-lg font-bold text-center mb-4 text-slate-800">Write-Ahead Log (WAL) Flow</h4>
+                <div class="flex flex-col md:flex-row justify-around items-center space-y-4 md:space-y-0">
+                    <div class="text-center"><div class="p-4 rounded-lg bg-white shadow w-48 h-24 flex items-center justify-center">Transaction Start</div></div>
+                    <div class="text-indigo-600 font-bold text-2xl transform rotate-90 md:rotate-0">→</div>
+                    <div class="text-center"><div class="p-4 rounded-lg bg-white shadow w-48 h-24 flex items-center justify-center">Write to Log File</div></div>
+                    <div class="text-indigo-600 font-bold text-2xl transform rotate-90 md:rotate-0">→</div>
+                    <div class="text-center"><div class="p-4 rounded-lg bg-white shadow w-48 h-24 flex items-center justify-center">Log Commit</div></div>
+                     <div class="text-indigo-600 font-bold text-2xl transform rotate-90 md:rotate-0">→</div>
+                    <div class="text-center"><div class="p-4 rounded-lg bg-green-100 text-green-800 shadow w-48 h-24 flex items-center justify-center">Write to Database</div></div>
+                </div>
+            </div>
+            <p class="font-semibold">Example WAL Entry:</p>
+            <div class="code-block mt-2">
+<span class="text-purple-400">BEGIN_TRANSACTION</span> ID=12;
+<span class="text-cyan-400">UPDATE</span> ACCOUNTS <span class="text-pink-400">SET</span> balance=balance-10 <span class="text-pink-400">WHERE</span> user='Jordan';
+<span class="text-cyan-400">UPDATE</span> ACCOUNTS <span class="text-pink-400">SET</span> balance=balance+10 <span class="text-pink-400">WHERE</span> user='Riley';
+<span class="text-purple-400">COMMIT</span> ID=12;
+            </div>
+            <p class="mt-6 text-lg">
+                If the system crashes before the 'COMMIT' record is written, the database knows to ignore the partial transaction upon recovery. If it crashes after, it can use the log to replay the transaction. Isolation, meanwhile, is often handled using separate, complex mechanisms like locks or multi-version concurrency control (MVCC) — a topic worth its own deep dive!
+            </p>
+        </section>
+
+        <!-- Why not full ACID? -->
+        <section class="mt-16 card p-8 bg-indigo-50 border border-indigo-200">
+             <h2 class="text-3xl font-bold text-slate-900 mb-4">⚡ Why Doesn’t Every Database Use Full ACID?</h2>
+            <p class="text-lg">
+                While ACID is the gold standard for correctness, guaranteeing it fully—especially strict serializable isolation—can come at a performance cost. The strict controls can slow down operations, creating a bottleneck in massive, distributed systems.
+            </p>
+            <p class="mt-4 text-lg">
+                That’s why some databases, particularly in the **NoSQL** world, relax certain properties for speed or scalability. For example, they might use **eventual consistency** instead of strict consistency or allow weaker isolation levels for higher throughput. The trade-off always depends on your system’s needs: absolute correctness for financial data, or massive scalability for a social feed where temporary inconsistencies are acceptable?
+            </p>
+        </section>
+
+        <!-- Wrapping Up -->
+        <section class="mt-16 card p-8">
+            <h2 class="text-3xl font-bold text-slate-900 mb-6">📚 Wrapping Up & Detailed Summary</h2>
+            <div class="space-y-8 text-lg leading-relaxed">
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">🧪</span>
+                        What are ACID transactions?
+                    </h3>
+                    <p>Effectively, ACID transactions are a way of writing to certain databases. The database provides abstractions that let us guarantee certain properties will always hold true. Those properties follow the acronym: ACID.</p>
+                </div>
+        
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">🔹</span>
+                         A — Atomicity
+                    </h3>
+                    <p><strong>“All or nothing.”</strong> Imagine you’re buying Karnov’s bath hat for $10: you lose $10, and Karnov gains $10. If only one of those writes succeeds, money vanishes from the system or is magically created. Atomicity ensures both updates either both succeed, or both fail. No in-between.</p>
+                </div>
+                
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">🔹</span>
+                        C — Consistency
+                    </h3>
+                    <p>Consistency means that after every transaction, the database moves from one valid state to another. When databases come back up after a crash, they shouldn't be in an absurd or corrupted state. For example, if a transaction to swap security guards fails midway, consistency ensures the database rolls back so we aren't left with no guard on duty.</p>
+                </div>
+        
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">🔹</span>
+                        I — Isolation
+                    </h3>
+                    <p>Isolation ensures that transactions appear to run independently, even if they’re happening at the same time. This prevents race conditions. If two people add $1 to a counter at the same time, isolation ensures the final result is $2, not $1. This is powerful but comes with a performance cost.</p>
+                </div>
+        
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">🔹</span>
+                        D — Durability
+                    </h3>
+                    <p>Durability guarantees that once a transaction is committed, the data stays there — even if the system crashes right afterward. As long as the hardware is working, your data remains. In-memory databases need extra work (like writing to disk) to meet this principle.</p>
+                </div>
+        
+                <div>
+                     <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">⚙️</span>
+                        How databases achieve ACID: Write-Ahead Log
+                    </h3>
+                     <p class="mb-2">A classic technique for Atomicity, Consistency, and Durability is a Write-Ahead Log (WAL). The database writes what it plans to do into the log on disk, and only after writing a "commit" marker are the changes applied. If the system crashes, it replays the log, applying only transactions that were fully committed.</p>
+                     <p class="font-semibold mt-4">Example WAL entry:</p>
+                     <div class="code-block mt-2">
+Transaction #12:
+- Riley Reid gets $10 for foot pictures
+- Jordan gives her $10 for foot pictures
+- Commit
+                     </div>
+                     <p class="mt-2">If the crash happens before writing 'Commit', the transaction is ignored. If after, it's safely applied.</p>
+                </div>
+        
+                <div>
+                     <h3 class="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                        <span class="text-2xl mr-3">📌</span>
+                        Final Summary
+                    </h3>
+                     <ul class="list-disc list-inside space-y-2">
+                        <li><strong>Atomicity:</strong> All or nothing.</li>
+                        <li><strong>Consistency:</strong> Move from one valid state to another.</li>
+                        <li><strong>Isolation:</strong> Transactions don’t step on each other’s toes.</li>
+                        <li><strong>Durability:</strong> Committed data stays, even after crashes.</li>
+                     </ul>
+                     <p class="mt-4">Together, these make databases reliable and trustworthy.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-300 mt-12">
+        <div class="max-w-5xl mx-auto py-6 px-4 sm:px-6 lg:px-8 text-center">
+            <p>&copy; 2024 ACID Explained. A conceptual overview of database transactions.</p>
+        </div>
+    </footer>
+
+</body>
+</html>
