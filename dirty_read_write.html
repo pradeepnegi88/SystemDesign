@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding Read Committed Isolation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .sql-block {
+            background-color: #2d3748; /* gray-800 */
+            color: #e2e8f0; /* gray-300 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        /* The break-words class from Tailwind will handle word wrapping */
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Understanding Read Committed Isolation</h1>
+            <p class="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">A fundamental concept in database transactions for ensuring data consistency.</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="space-y-12">
+
+            <!-- Introduction -->
+            <section class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+                <p class="text-lg leading-relaxed">
+                    Database isolation levels are rules that determine how and when changes made by one operation become visible to others. They are crucial for preventing data corruption in systems where multiple users are reading and writing data simultaneously. <strong>Read Committed</strong> is one of the most common default isolation levels used in modern databases (like PostgreSQL and Oracle).
+                </p>
+                <div class="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                    <h3 class="font-semibold text-blue-800">Core Guarantees:</h3>
+                    <ul class="list-disc list-inside mt-2 space-y-1 text-blue-700">
+                        <li><strong>No Dirty Writes:</strong> Your transaction will not overwrite changes from another transaction that hasn't been finalized (committed) yet.</li>
+                        <li><strong>No Dirty Reads:</strong> Your transaction will only read data that has been successfully finalized (committed).</li>
+                    </ul>
+                </div>
+            </section>
+            
+            <!-- Summary Section -->
+            <section id="summary" class="card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">✅ Topic Summary: Read Committed at a Glance</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">⚙️ Background: Multi-threaded Databases</h3>
+                        <ul class="list-disc list-inside space-y-2 text-gray-700">
+                            <li>Databases process multiple reader and writer threads concurrently.</li>
+                            <li>Because operations overlap, the exact order isn’t guaranteed, which can cause <strong>race conditions</strong>—situations where results depend on unpredictable timing.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">📝 Key Term: Commit</h3>
+                        <ul class="list-disc list-inside space-y-2 text-gray-700">
+                            <li>To <strong>commit</strong> means a write is confirmed and made durable in the database.</li>
+                            <li>For a transaction with multiple steps, all must succeed for the commit to happen. Partial changes are not committed and can cause inconsistencies.</li>
+                        </ul>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <h3 class="text-xl font-semibold text-gray-800 mb-2">⚡ Race Condition #1: Dirty Write</h3>
+                            <p class="font-semibold">What is it?</p>
+                            <p class="mb-2 text-gray-700">Writing over uncommitted changes from another transaction.</p>
+                             <p class="font-semibold">Fix:</p>
+                            <p class="text-gray-700">Use row-level locks. Only one writer can hold the lock at a time.</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                             <h3 class="text-xl font-semibold text-gray-800 mb-2">⚡ Race Condition #2: Dirty Read</h3>
+                             <p class="font-semibold">What is it?</p>
+                             <p class="mb-2 text-gray-700">Reading uncommitted data from a transaction that may fail later.</p>
+                             <p class="font-semibold">Fix:</p>
+                             <p class="text-gray-700">Store the old version of a row. Readers see the old, committed value until the new one is committed. This is faster than locking for reads.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">📌 The Takeaway</h3>
+                        <div class="p-4 bg-green-50 border-l-4 border-green-400 rounded-r-lg">
+                            <p class="text-green-800">
+                                A database using <strong>Read Committed</strong> prevents both <strong>Dirty Writes</strong> (by locking writes) and <strong>Dirty Reads</strong> (by versioning data for readers). It's a solid baseline for protecting data correctness while maintaining good performance. However, it doesn’t protect against all race conditions.
+                            </p>
+                        </div>
+                    </div>
+                     <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">🎥 Closing Tip: The Trade-off</h3>
+                        <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+                            <p class="text-yellow-800">
+                                Isolation levels are a trade-off. Higher isolation means more guarantees and fewer errors, but often leads to more locks, less concurrency, and slower performance.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- More Examples & Analogies Section -->
+            <section id="more-examples" class="card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-6">More Examples & Analogies</h2>
+                <div class="space-y-8">
+                    <!-- Analogy -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">1️⃣ Real-life Analogy: A Group Project</h3>
+                        <div class="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg text-blue-800">
+                            <p>Think of editing a shared report. If you print it while your friend is still writing their part, you might submit an unfinished, incorrect version. Read Committed is the rule: <strong>“Only print the final version after everyone says they are done!”</strong></p>
+                        </div>
+                    </div>
+                     <!-- Timeline Example -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">2️⃣ What can go wrong without Read Committed</h3>
+                         <div class="grid md:grid-cols-2 gap-6">
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <h4 class="font-bold text-red-700">📍 Dirty Write</h4>
+                                <p class="mt-2 text-red-600">User A updates a product price to ₹500. User B updates it to ₹450 at the same time. Without locking, one update overwrites the other, and the final price is unpredictable.</p>
+                            </div>
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <h4 class="font-bold text-red-700">📍 Dirty Read</h4>
+                                <p class="mt-2 text-red-600">A finance report reads uncommitted data showing a profit of ₹1M. When the transactions roll back, the real profit is only ₹500K. This causes huge confusion!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SQL Example -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">3️⃣ Simple SQL Example</h3>
+                        <p class="mb-4 text-gray-700">Suppose you have a table `accounts` with `user_id = 1` and `balance = 10000`.</p>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="font-semibold text-gray-800">Transaction 1 (T1) - The Payer</h4>
+                                <pre class="sql-block mt-2"><code>BEGIN;
+UPDATE accounts
+SET balance = balance - 1000
+WHERE user_id = 1;
+-- Not committed yet!</code></pre>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-800">Transaction 2 (T2) - The Checker</h4>
+                                <pre class="sql-block mt-2"><code>-- Running concurrently
+SELECT balance 
+FROM accounts 
+WHERE user_id = 1;</code></pre>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <p>🔹 With <strong class="text-red-600">READ UNCOMMITTED</strong>, T2 sees the balance as <strong class="text-red-600">₹9000</strong>, even though T1 isn't done.</p>
+                            <p>🔹 With <strong class="text-green-600">READ COMMITTED</strong>, T2 still sees <strong class="text-green-600">₹10,000</strong> until T1 executes `COMMIT;`.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Key Takeaway Table -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">4️⃣ Key Takeaway: Isolation Level Comparison</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-max border border-gray-300 text-left">
+                                <thead class="bg-gray-200">
+                                    <tr>
+                                        <th class="p-3 border-b border-gray-300">Isolation Level</th>
+                                        <th class="p-3 border-b border-gray-300">Dirty Write</th>
+                                        <th class="p-3 border-b border-gray-300">Dirty Read</th>
+                                        <th class="p-3 border-b border-gray-300">Non-repeatable Read</th>
+                                        <th class="p-3 border-b border-gray-300">Phantom Read</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="bg-red-50">
+                                        <td class="p-3 border-b border-gray-300 font-semibold">Read Uncommitted</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                    </tr>
+                                    <tr class="bg-green-50">
+                                        <td class="p-3 border-b border-gray-300 font-semibold">Read Committed</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">✅ Prevented</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">✅ Prevented</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                        <td class="p-3 border-b border-gray-300 text-center">❌ Allowed</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="mt-4 text-gray-700">Read Committed stops the basic issues, but for stronger protection (like preventing non-repeatable or phantom reads), you need higher levels like <strong>Repeatable Read</strong> or <strong>Serializable</strong>.</p>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Section 1: Preventing Dirty Writes -->
+            <section id="dirty-writes-detailed" class="card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">In-Depth Example 1: Preventing Dirty Writes</h2>
+                <p class="mb-6 text-gray-700 leading-relaxed">Let's revisit the "dirty write" scenario with a step-by-step example. This occurs when one transaction overwrites the uncommitted changes of another, leading to lost data.</p>
+                
+                <div class="bg-gray-100 p-6 rounded-lg">
+                    <h3 class="font-semibold text-xl mb-4 text-gray-800">Scenario: Booking the Last Concert Ticket</h3>
+                    <div class="overflow-hidden">
+                        <table class="w-full table-fixed border border-gray-300 text-left">
+                            <colgroup>
+                                <col style="width: 15%;">
+                                <col style="width: 42.5%;">
+                                <col style="width: 42.5%;">
+                            </colgroup>
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="p-3 border-b border-gray-300">Time</th>
+                                    <th class="p-3 border-b border-gray-300">Alice's Transaction (T1)</th>
+                                    <th class="p-3 border-b border-gray-300">Bob's Transaction (T2)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-white">
+                                    <td class="p-3 border-b border-gray-300 font-mono">1</td>
+                                    <td class="p-3 border-b border-gray-300 break-words"><code class="bg-gray-200 p-1 rounded">UPDATE... SET purchaser = 'Alice'</code></td>
+                                    <td class="p-3 border-b border-gray-300 break-words"></td>
+                                </tr>
+                                <tr class="bg-white">
+                                    <td class="p-3 border-b border-gray-300 font-mono">2</td>
+                                    <td class="p-3 border-b border-gray-300 break-words"></td>
+                                    <td class="p-3 border-b border-gray-300 break-words"><code class="bg-gray-200 p-1 rounded">UPDATE... SET purchaser = 'Bob'</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-6 grid md:grid-cols-2 gap-6">
+                        <!-- The Problem -->
+                        <div class="bg-red-50 border border-red-200 p-4 rounded-lg">
+                            <h4 class="font-bold text-red-700">The Problem (Without Read Committed)</h4>
+                            <p class="mt-2 text-red-600">Bob's update could overwrite Alice's uncommitted change. Alice's purchase would be lost, even if her transaction commits first.</p>
+                        </div>
+                        <!-- The Solution -->
+                        <div class="bg-green-50 border border-green-200 p-4 rounded-lg">
+                            <h4 class="font-bold text-green-700">The Solution (With Read Committed)</h4>
+                            <p class="mt-2 text-green-600">Alice's transaction locks the row. Bob's transaction is forced to wait until Alice commits, preventing the lost update.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Preventing Dirty Reads -->
+            <section id="dirty-reads-detailed" class="card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">In-Depth Example 2: Preventing Dirty Reads</h2>
+                <p class="mb-6 text-gray-700 leading-relaxed">A "dirty read" occurs when one transaction reads data from another, uncommitted transaction. Here's how Read Committed stops this.</p>
+                
+                <div class="bg-gray-100 p-6 rounded-lg">
+                    <h3 class="font-semibold text-xl mb-4 text-gray-800">Scenario: A Bank Transfer</h3>
+                     <p class="mb-4 text-sm text-gray-600">Initial State: Savings = $500, Checking = $0.</p>
+                     <div class="overflow-hidden">
+                        <table class="w-full table-fixed border border-gray-300 text-left">
+                            <colgroup>
+                                <col style="width: 10%;">
+                                <col style="width: 30%;">
+                                <col style="width: 30%;">
+                                <col style="width: 30%;">
+                            </colgroup>
+                           <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="p-3 border-b">Time</th>
+                                    <th class="p-3 border-b">Transfer Transaction (T1)</th>
+                                    <th class="p-3 border-b">Balance Check (T2)</th>
+                                    <th class="p-3 border-b">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-white"><td class="p-3 border-b font-mono">1</td><td class="p-3 border-b break-words"><code class="bg-gray-200 p-1 rounded">UPDATE Savings...</code></td><td class="p-3 border-b break-words"></td><td class="p-3 border-b break-words">Deducts $100 (Uncommitted)</td></tr>
+                                <tr class="bg-white"><td class="p-3 border-b font-mono">2</td><td class="p-3 border-b break-words"></td><td class="p-3 border-b break-words"><code class="bg-gray-200 p-1 rounded">SELECT FROM Savings</code></td><td class="p-3 border-b break-words">Reads Savings balance</td></tr>
+                                <tr class="bg-white"><td class="p-3 border-b font-mono">4</td><td class="p-3 border-b break-words"><code class="bg-red-200 p-1 rounded">UPDATE Checking...</code></td><td class="p-3 border-b break-words"></td><td class="p-3 border-b break-words text-red-600 font-semibold">This step fails!</td></tr>
+                                <tr class="bg-white"><td class="p-3 border-b font-mono">5</td><td class="p-3 border-b break-words"><code class="bg-gray-200 p-1 rounded">ROLLBACK;</code></td><td class="p-3 border-b break-words"></td><td class="p-3 border-b break-words">Changes are reverted.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-6 grid md:grid-cols-2 gap-6">
+                        <!-- The Problem -->
+                        <div class="bg-red-50 border border-red-200 p-4 rounded-lg">
+                            <h4 class="font-bold text-red-700">The Problem (Without Read Committed)</h4>
+                            <p class="mt-2 text-red-600">The Balance Check (T2) would read the Savings balance as $400, an incorrect value since the transfer ultimately failed and was rolled back.</p>
+                        </div>
+                        <!-- The Solution -->
+                        <div class="bg-green-50 border border-green-200 p-4 rounded-lg">
+                            <h4 class="font-bold text-green-700">The Solution (With Read Committed)</h4>
+                            <p class="mt-2 text-green-600">T2 reads the last committed value of the Savings balance ($500). It is unaffected by T1's temporary, uncommitted changes.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Limitations / Next Steps -->
+            <section id="next-steps" class="card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Final Summary & Next Steps</h2>
+                <p class="mb-4 text-gray-700 leading-relaxed">As the video mentions, Read Committed is a great start, but it doesn't solve every concurrency problem. Understanding its limitations is the key to knowing when you need a stronger isolation level.</p>
+                 <div class="mt-4 p-6 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+                    <h3 class="font-semibold text-yellow-800 mb-4">Pesky Race Conditions Still Allowed:</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-bold text-yellow-900">Non-Repeatable Read</h4>
+                            <p class="text-yellow-800">This happens when your transaction reads the same row twice but gets different data each time, because another transaction committed an update in between your reads.</p>
+                             <p class="mt-2 text-sm text-yellow-700"><strong>Example:</strong> You check a product price ($50), another user updates it to $45 and commits, and when you check again, you see $45. The value changed within your single transaction.</p>
+                        </div>
+                         <div>
+                            <h4 class="font-bold text-yellow-900">Phantom Read</h4>
+                            <p class="text-yellow-800">This occurs when your transaction runs the same query twice and gets more rows the second time, because another transaction inserted new rows that match your query and committed.</p>
+                             <p class="mt-2 text-sm text-yellow-700"><strong>Example:</strong> You query for all employees in a department and get 10. Another user adds a new employee to that department and commits. When you run the same query again, you get 11 rows.</p>
+                        </div>
+                    </div>
+                     <p class="mt-6 text-yellow-900 font-semibold">To solve these more complex issues, the next topics to study are the higher isolation levels: <strong>Repeatable Read</strong> and <strong>Serializable</strong>.</p>
+                </div>
+                <div class="mt-8 bg-gray-100 p-6 rounded-lg">
+                    <h3 class="font-semibold text-xl mb-4 text-gray-800">Summary</h3>
+                    <div class="text-gray-700 space-y-4 leading-relaxed">
+                        <p>The subject of today's content is read committed isolation. Let's start with the basics of databases. Databases are multi-threaded, meaning they have many reader and writer threads executing concurrently on the same computer. Because we don't know the exact order of these executions, many issues can arise that threaten the correctness of our results.</p>
+                        <p>This concurrency introduces race conditions. Before we discuss examples, let's define some terminology, specifically the word 'commit'. Committing a write means the right is confirmed in the database. If a transaction involves a sequence of writes, such as to two different rows, both writes must be successful for the transaction to be committed. If only the first write has succeeded, it is not yet committed; all operations in the transaction must be finished.</p>
+                        <p>Let's discuss examples of race conditions, starting with a 'dirty write'. This occurs when one transaction writes over the uncommitted values of another transaction. A dirty write can lead to an inconsistent state that breaks database invariants. Row-level locks are the solution to fix dirty rights.</p>
+                        <p>However, dirty rights aren't the only issue. Another is the 'dirty read', which is reading uncommitted data. For instance, consider a transaction (T1) that deducts $10 from an account balance. A second transaction (T2) reads this new, lower balance. However, if T1 later fails and rolls back (for example, the corresponding credit to another account fails), T2 has read data that was never officially committed and is now incorrect. This is a dirty read.</p>
+                        <p>How can we fix dirty reads? One option is row-level locking, but this is inefficient for reads, as locking is slow and can create bottlenecks. A better solution is for the database to maintain the old, committed value of the data. Readers will see this old value until the writing transaction successfully commits. This approach, often part of Multi-Version Concurrency Control (MVCC), incurs some storage overhead but significantly speeds up the database by reducing the need for read locks.</p>
+                        <p>In summary, we've covered two types of race conditions: dirty reads and dirty rights. A database that protects against both is implementing 'read committed' isolation. It's important to note that many more race conditions exist beyond these two. Subsequent material will cover more advanced topics and the more complex solutions required to handle them.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center mt-12 py-6 border-t border-gray-200">
+            <p class="text-gray-500">A simplified explanation of database transaction isolation.</p>
+        </footer>
+    </div>
+
+</body>
+</html>
