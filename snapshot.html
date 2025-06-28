@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Read Skew vs. Snapshot Isolation Explained</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .diagram-box {
+            border: 1px solid #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background-color: #f8fafc;
+        }
+        .arrow {
+            position: relative;
+            padding: 0 1rem;
+            color: #64748b;
+        }
+        .arrow::after {
+            content: '→';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+        }
+        .transaction-line {
+            position: relative;
+            border-left: 2px dashed #9ca3af;
+            margin-left: 1rem;
+            padding-left: 1.5rem;
+        }
+        .transaction-dot {
+            position: absolute;
+            left: -0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1rem;
+            height: 1rem;
+            border-radius: 9999px;
+            border: 2px solid white;
+        }
+        .highlight-red { color: #ef4444; }
+        .highlight-green { color: #22c55e; }
+        .strikethrough { text-decoration: line-through; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Read Skew Explained</h1>
+            <p class="mt-4 text-lg text-gray-600">How a race condition can corrupt your data, and how Snapshot Isolation saves the day.</p>
+        </header>
+
+        <!-- Section 1: The Problem of Read Skew -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-4 border-b pb-2">The Problem: Read Skew</h2>
+            <p class="text-lg mb-6">Imagine you have a database table of the Kardashian family's bank accounts. A critical rule (an "invariant") is that the total balance must always be **$1,000,000**. They can only transfer money among themselves.</p>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-2xl font-semibold mb-4">Scenario: The Inconsistent Total</h3>
+                <p class="mb-6">You run a long query to calculate the total balance by reading each account one by one. But while your query is running, a transaction occurs!</p>
+
+                <!-- Diagram of Read Skew -->
+                <div class="diagram-box">
+                    <h4 class="font-bold text-lg mb-4 text-center">Diagram: How Read Skew Happens</h4>
+                    <div class="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4">
+                        <!-- Step 1: Initial State -->
+                        <div class="text-center">
+                            <h5 class="font-semibold">Initial Balances</h5>
+                            <table class="mt-2 w-full sm:w-auto border rounded-lg bg-white">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="p-2 border-b">Name</th>
+                                        <th class="p-2 border-b">Balance</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td class="p-2 border-b">Caitlyn</td><td class="p-2 border-b">$100,000</td></tr>
+                                    <tr><td class="p-2 border-b">...</td><td class="p-2 border-b">...</td></tr>
+                                    <tr><td class="p-2 border-b">Kris</td><td class="p-2 border-b">$100,000</td></tr>
+                                    <tr><td class="p-2 border-b">...</td><td class="p-2 border-b">...</td></tr>
+                                    <tr class="font-bold bg-gray-50"><td class="p-2">Total</td><td class="p-2">$1,000,000</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="arrow hidden md:block"></div>
+                        <div class="text-2xl md:hidden">↓</div>
+
+                        <!-- Step 2: Concurrent Operations -->
+                        <div class="flex-grow">
+                            <h5 class="font-semibold text-center mb-2">Timeline of Operations</h5>
+                            <div class="transaction-line py-4">
+                                <!-- Read Caitlyn -->
+                                <div class="relative mb-4">
+                                    <div class="transaction-dot bg-blue-500"></div>
+                                    <p><strong class="text-blue-600">Your Query (T-Read):</strong> Reads Caitlyn's balance: <span class="font-mono bg-blue-100 px-2 py-1 rounded">$100,000</span>.</p>
+                                </div>
+                                <!-- Write Transaction -->
+                                <div class="relative mb-4 p-4 border border-red-300 bg-red-50 rounded-lg">
+                                    <div class="transaction-dot bg-red-500"></div>
+                                    <p><strong class="text-red-600">Transaction (T-Write):</strong> Kris sends $100,000 to Caitlyn.</p>
+                                    <ul class="list-disc list-inside mt-2 text-red-700">
+                                        <li>Caitlyn's balance becomes $200,000.</li>
+                                        <li>Kris's balance becomes $0.</li>
+                                    </ul>
+                                </div>
+                                 <!-- Read Kris -->
+                                <div class="relative">
+                                    <div class="transaction-dot bg-blue-500"></div>
+                                    <p><strong class="text-blue-600">Your Query (T-Read):</strong> Continues and reads Kris's <span class="font-bold">new</span> balance: <span class="font-mono bg-blue-100 px-2 py-1 rounded">$0</span>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 text-center p-4 bg-red-100 border border-red-200 rounded-lg">
+                        <h4 class="font-bold text-xl text-red-700">The Incorrect Result</h4>
+                        <p class="mt-2 text-red-600">Your query saw Caitlyn's <span class="font-bold">old</span> value ($100k) but Kris's <span class="font-bold">new</span> value ($0). The final calculated sum is wrong: <strong class="text-2xl font-mono highlight-red">$900,000</strong>!</p>
+                        <p class="mt-1 text-sm text-gray-600">This is **Read Skew**: your read saw an inconsistent mix of old and new data.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: The Solution with Snapshot Isolation -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-4 border-b pb-2">The Solution: Snapshot Isolation</h2>
+            <p class="text-lg mb-6">To fix this, we need to ensure our read query sees the database in a single, consistent state. This is achieved with **Snapshot Isolation**, which relies on a technique called **Multi-Version Concurrency Control (MVCC)**.</p>
+
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-2xl font-semibold mb-4">How It Works: Keeping Old Versions</h3>
+                <p class="mb-4">Instead of overwriting data, the database keeps old versions of rows, each tagged with the transaction ID that created it. All transactions are ordered sequentially (T1, T2, T3...).</p>
+                <p class="mb-6">When your query begins, it's given a "snapshot" time (e.g., it starts at T15). It will only see data from transactions committed *before* T15.</p>
+
+                <!-- Diagram of Snapshot Isolation -->
+                <div class="diagram-box">
+                    <h4 class="font-bold text-lg mb-4 text-center">Diagram: Reading from a Snapshot at T15</h4>
+                    <p class="text-center text-gray-600 mb-6">Your query starts at Transaction 15. It must ignore any data from T16 onwards.</p>
+
+                    <table class="w-full border-collapse rounded-lg overflow-hidden bg-white shadow">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="p-3 text-left">Account</th>
+                                <th class="p-3 text-left">Version History (Transaction ID → Balance)</th>
+                                <th class="p-3 text-left text-green-700 bg-green-100">Version Seen by T15</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b">
+                                <td class="p-3 font-semibold">Caitlyn</td>
+                                <td class="p-3 font-mono">
+                                    <span class="strikethrough text-gray-400">T1→$100k</span>,
+                                    <span class="strikethrough text-gray-400">T6→$300k</span>,
+                                    <strong class="text-green-600">T12→$200k</strong>,
+                                    <span class="strikethrough text-red-500">T17→...</span>
+                                </td>
+                                <td class="p-3 font-mono font-bold text-green-700 bg-green-50">$200,000</td>
+                            </tr>
+                            <tr class="border-b">
+                                <td class="p-3 font-semibold">Kendall</td>
+                                <td class="p-3 font-mono">
+                                    <strong class="text-green-600">T15→$1,000,000</strong>,
+                                    <span class="strikethrough text-red-500">T22→...</span>
+                                </td>
+                                <td class="p-3 font-mono font-bold text-green-700 bg-green-50">$1,000,000</td>
+                            </tr>
+                            <tr class="border-b">
+                                <td class="p-3 font-semibold">Kris</td>
+                                <td class="p-3 font-mono">
+                                    <span class="strikethrough text-red-500">T22→...</span>
+                                </td>
+                                <td class="p-3 font-mono font-bold text-green-700 bg-green-50">(Row does not exist yet)</td>
+                            </tr>
+                             <tr class="border-b">
+                                <td class="p-3 font-semibold">Lamar</td>
+                                <td class="p-3 font-mono">
+                                    <strong class="text-green-600">T3→$100k</strong>
+                                </td>
+                                <td class="p-3 font-mono font-bold text-green-700 bg-green-50">$100,000</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="mt-6 text-center p-4 bg-green-100 border border-green-200 rounded-lg">
+                        <h4 class="font-bold text-xl text-green-700">The Correct Result</h4>
+                        <p class="mt-2 text-green-600">Your query reads the latest version of each row that was committed *before or at T15*. Any writes happening after T15 (like at T17 or T22) are invisible.</p>
+                        <p class="mt-2">The result is a **consistent view** of the database, and the total balance will be correct!</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Summary -->
+        <section class="mb-16">
+             <h2 class="text-3xl font-bold mb-4 border-b pb-2">Summary</h2>
+             <div class="grid md:grid-cols-2 gap-8">
+                 <div class="bg-red-50 p-6 rounded-lg border border-red-200">
+                     <h3 class="text-2xl font-semibold text-red-700">Read Skew (The Problem)</h3>
+                     <p class="mt-2 text-red-600">A read query sees a mix of old and new data from different points in time, leading to inconsistent and incorrect results.</p>
+                 </div>
+                 <div class="bg-green-50 p-6 rounded-lg border border-green-200">
+                     <h3 class="text-2xl font-semibold text-green-700">Snapshot Isolation (The Solution)</h3>
+                     <p class="mt-2 text-green-600">The query is given a "snapshot" of the database from the moment it started. It only sees data versions from that snapshot, guaranteeing a consistent view.</p>
+                 </div>
+             </div>
+             <p class="text-center mt-8 text-lg text-gray-700">The key takeaway: **Writers don't block readers, and readers don't block writers**, allowing for high concurrency while maintaining data consistency for read queries.</p>
+        </section>
+
+        <!-- Section 4: Video Transcript Summary -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold mb-4 border-b pb-2">Summary</h2>
+            <div class="bg-white p-6 rounded-lg shadow-md space-y-4 text-gray-700">
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-semibold text-lg">Read Skew</h3>
+                    <p>The main topic is a race condition called "repeatable read" or "read skew." The speaker uses an example of a database table for the Kardashian family's bank accounts, where the total balance must always sum to one million dollars. During a long read query that sums up all balances, a transaction occurs mid-way (e.g., Kris sends Caitlyn $100k). The query reads Caitlyn's old balance but later reads Kris's new, updated balance. This leads to an incorrect total sum ($900k instead of $1M), which is the essence of read skew: seeing an inconsistent state of the database because of a write that happens during a long read.</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-semibold text-lg">Right Ahead Log (WAL)</h3>
+                    <p>The proposed solution starts with the Write-Ahead Log (WAL). Every write goes into the WAL sequentially, which allows transactions to be ordered with a monotonically increasing sequence number (e.g., T1, T2, T3...). This ordering is key to solving the problem.</p>
+                </div>
+                 <div class="p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-semibold text-lg">Exercise & Snapshot Isolation</h3>
+                    <p>how to see a consistent database snapshot at a specific transaction time, like T15. Instead of deleting old data, the database stores multiple versions of each row, tagged with the transaction number that wrote it (this is MVCC). To get the state at T15, the query ignores any data written by transactions after T15. For each row, it selects the most recent version written at or before T15. This process ensures the query sees a consistent "snapshot" of the database, preventing read skew. This is the premise of Snapshot Isolation.</p>
+                </div>
+               
+            </div>
+        </section>
+        
+        <footer class="text-center mt-12 pt-6 border-t">
+            <p class="text-gray-500"></p>
+        </footer>
+
+    </div>
+
+</body>
+</html>
