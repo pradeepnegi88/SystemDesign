@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Race Conditions: Right Skew & Phantoms</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Use Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
+        <!-- Main Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-900">Database Race Conditions Explained</h1>
+            <p class="mt-2 text-lg text-gray-600">A Visual Guide to Right Skew & Phantoms</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="space-y-12">
+
+            <!-- Section 1: Right Skew -->
+            <section id="right-skew" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-2xl font-bold text-indigo-700 mb-4 pb-2 border-b border-indigo-100">1. Right Skew</h2>
+                <p class="mb-6 text-gray-600">
+                    Right Skew occurs when two transactions read the same data and then update different parts of it. Their individual actions seem safe, but their combined result violates a key system rule (an invariant) because they don't lock each other out.
+                </p>
+
+                <!-- Scenario -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold mb-2">Scenario: The On-Call Doctors</h3>
+                    <p><strong class="font-medium text-gray-700">The Rule (Invariant):</strong> At least one doctor must be active at all times.</p>
+                    <p><strong class="font-medium text-gray-700">Initial State:</strong> Dr. Oz and Dr. Toboggan are both active.</p>
+                </div>
+
+                <!-- The Problem Flow -->
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="text-lg font-semibold text-red-600 mb-2">The Race Condition</h4>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <!-- Transaction 1 -->
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <p class="font-semibold">Transaction 1 (Dr. Oz)</p>
+                                <p class="text-sm text-gray-600">1. Reads count of active doctors (sees 2).</p>
+                                <p class="text-sm text-gray-600">2. Decides it's safe to leave.</p>
+                                <p class="text-sm text-gray-600">3. Sets own status to `inactive`.</p>
+                            </div>
+                            <!-- Transaction 2 -->
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <p class="font-semibold">Transaction 2 (Dr. Toboggan)</p>
+                                <p class="text-sm text-gray-600">1. Reads count of active doctors (sees 2).</p>
+                                <p class="text-sm text-gray-600">2. Decides it's safe to leave.</p>
+                                <p class="text-sm text-gray-600">3. Sets own status to `inactive`.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-red-600 mb-2 mt-4">The Result: Invariant Violation</h4>
+                        <div class="bg-red-100 p-4 rounded-lg text-center border border-red-300">
+                           <p class="font-bold text-red-800">CRITICAL FAILURE: Zero doctors are now active!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- The Solution -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <h3 class="text-xl font-semibold mb-2 text-green-700">The Solution: Lock the Intention</h3>
+                    <p class="mb-4 text-gray-600">
+                        To fix this, a transaction must lock all rows involved in its decision-making, often using a <code class="bg-gray-200 text-sm p-1 rounded">SELECT FOR UPDATE</code> query. This forces other transactions with conflicting locks to wait.
+                    </p>
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <p class="font-semibold mb-2">Corrected Flow Description</p>
+                        <ol class="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                            <li>Dr. Oz's transaction starts and places a lock on all active doctor rows.</li>
+                            <li>Dr. Toboggan's transaction starts and attempts to lock the same rows, but must wait.</li>
+                            <li>Dr. Oz safely sets his status to inactive and commits his transaction. The locks are released.</li>
+                            <li>Dr. Toboggan's transaction can now acquire the locks. It re-reads the data and sees only one doctor is active.</li>
+                            <li>The application logic correctly prevents Dr. Toboggan from going inactive. The invariant is saved!</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Phantoms -->
+            <section id="phantoms" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-2xl font-bold text-teal-700 mb-4 pb-2 border-b border-teal-100">2. Phantoms</h2>
+                <p class="mb-6 text-gray-600">
+                    A Phantom appears when one transaction reads data, and a second transaction inserts a *new* row that would have matched the first transaction's read. The first transaction is now haunted by a "phantom" row it never knew existed, leading to incorrect assumptions.
+                </p>
+
+                <!-- Scenario -->
+                <div class="mb-6">
+                    <h3 class="text-xl font-semibold mb-2">Scenario: The Last Cupcake</h3>
+                    <p><strong class="font-medium text-gray-700">The Rule (Invariant):</strong> Only one person can claim an item.</p>
+                    <p><strong class="font-medium text-gray-700">Initial State:</strong> The "Cupcake" item has not been claimed, so no row for it exists in the orders table.</p>
+                </div>
+                
+                <!-- The Problem Flow -->
+                <div class="space-y-4">
+                    <div>
+                        <h4 class="text-lg font-semibold text-red-600 mb-2">The Race Condition</h4>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <!-- Transaction 1 -->
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <p class="font-semibold">Transaction 1 (Jordan)</p>
+                                <p class="text-sm text-gray-600">1. Checks if a "Cupcake" order exists (finds none).</p>
+                                <p class="text-sm text-gray-600">2. Assumes it's available.</p>
+                                <p class="text-sm text-gray-600">3. Inserts a new row to claim the cupcake.</p>
+                            </div>
+                            <!-- Transaction 2 -->
+                            <div class="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <p class="font-semibold">Transaction 2 (Donald)</p>
+                                <p class="text-sm text-gray-600">1. Checks if a "Cupcake" order exists (finds none).</p>
+                                <p class="text-sm text-gray-600">2. Assumes it's available.</p>
+                                <p class="text-sm text-gray-600">3. Inserts a new row to claim the cupcake.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-lg font-semibold text-red-600 mb-2 mt-4">The Result: Invariant Violation</h4>
+                        <div class="bg-red-100 p-4 rounded-lg text-center border border-red-300">
+                           <p class="font-bold text-red-800">CRITICAL FAILURE: Two people have claimed the same cupcake!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- The Solution -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <h3 class="text-xl font-semibold mb-2 text-green-700">The Solution: Materialize the Conflict</h3>
+                    <p class="mb-4 text-gray-600">
+                        The fix is to ensure a row exists to be locked for every *possible* item, even if it's not yet claimed. We "materialize" the potential conflict into a physical row that transactions can fight over.
+                    </p>
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <p class="font-semibold mb-2">Corrected Flow Description</p>
+                        <ol class="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                            <li>First, create a `bakery_stock` table with a pre-populated row for "Cupcake" (and all other items).</li>
+                            <li>Jordan's transaction starts and locks the "Cupcake" row in the `bakery_stock` table.</li>
+                            <li>Donald's transaction starts and tries to lock the same row, but must wait because it's already locked.</li>
+                            <li>Jordan successfully claims the cupcake (e.g., by updating the stock row or inserting into an `orders` table) and commits. The lock is released.</li>
+                            <li>Donald's transaction proceeds, sees the cupcake is now claimed by Jordan, and correctly fails. The invariant is saved!</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Summary -->
+            <section id="summary" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">Summary</h2>
+                <div class="space-y-4 text-gray-600">
+                    <p>
+                        Today we're covering Right Skew and Phantoms, two types of database race conditions. While another common issue is "lost updates" (where two transactions read a value, and one's update is overwritten), we'll focus on these two.
+                    </p>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Right Skew Summary</h3>
+                        <p>
+                            Imagine an emergency room where the rule is at least one doctor must be active. If two doctors, Dr. Oz and Dr. Toboggan, both see that two doctors are active and decide to go inactive at the same time, the rule is broken. The problem is that while they each lock their own row to update it, they don't lock the other rows that are part of the overall rule.
+                        </p>
+                        <p class="mt-2">
+                           The solution is to expand the scope of the lock. When a doctor wants to go inactive, their transaction must first lock all other active doctors. This way, when Dr. Oz and Dr. Toboggan try to leave simultaneously, they both attempt to grab the same set of locks. Only one transaction will succeed, and the other will have to wait, preventing the invariant from being violated.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">Phantoms Summary</h3>
+                        <p>
+                           Now, let's consider Phantoms. Imagine a bakery where two people, Jordan and Donald, both try to claim the last cupcake. They both check the database, see that no one has claimed a cupcake yet, and both proceed to write a new row claiming it. The issue here is that the row they want to lock—the cupcake claim—doesn't exist yet. You can't lock something that isn't there. This is a "Phantom" problem: new rows are written that conflict with each other.
+                        </p>
+                        <p class="mt-2">
+                            The solution is called "materializing conflicts." This means we pre-populate the database with a row for every possible item in the bakery, including the cupcake. Now, a row exists for the cupcake, even if it's unclaimed. When Jordan and Donald try to claim it, they must first grab the lock on this pre-existing cupcake row. Only one can win the lock, and that person gets to claim the cupcake, preventing the conflict.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="text-center mt-12 py-4 border-t">
+            <p class="text-sm text-gray-500">A simplified explanation of database transaction anomalies.</p>
+        </footer>
+    </div>
+</body>
+</html>
