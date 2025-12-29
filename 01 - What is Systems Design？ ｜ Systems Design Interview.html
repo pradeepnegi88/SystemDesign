@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Systems Design Masterclass Notes | Jordan (Google SWE)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --primary: #0b5394;
+            --accent: #ff9800;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: #f0f2f5; color: #1e293b; scroll-behavior: smooth; }
+        code { font-family: 'Fira Code', monospace; background: #f1f5f9; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; color: #e11d48; }
+        
+        /* Layout */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: #ffffff;
+            border-right: 1px solid #d1d5db;
+            padding: 2rem 1.5rem;
+            overflow-y: auto;
+            z-index: 50;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 2rem 5% 6rem;
+            max-width: 1100px;
+        }
+
+        /* Story Note Elements */
+        .story-section {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            margin-bottom: 4rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e7eb;
+            position: relative;
+        }
+
+        .chapter-badge {
+            position: absolute;
+            top: -15px;
+            left: 30px;
+            background: var(--primary);
+            color: white;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .expert-bubble {
+            background: #fff7e6;
+            border-left: 5px solid var(--accent);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 4px;
+            font-style: italic;
+        }
+
+        /* Visual Illustrations */
+        .illustration-container {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .jacked-client {
+            width: 80px;
+            height: 80px;
+            background: #e2e8f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            border: 3px solid #0b5394;
+            box-shadow: 0 0 20px rgba(11, 83, 148, 0.2);
+        }
+
+        .hardware-chip {
+            width: 150px;
+            height: 40px;
+            background: #334155;
+            border: 2px solid #94a3b8;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        .chip-pin { width: 8px; height: 15px; background: #fbbf24; }
+
+        .disk-visual {
+            width: 80px;
+            height: 80px;
+            background: #475569;
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .platter { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #94a3b8; background: radial-gradient(circle, #64748b 0%, #1e293b 100%); animation: spin 4s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .needle { position: absolute; width: 35px; height: 3px; background: #cbd5e1; top: 40px; left: 45px; transform-origin: left; animation: seek 2s ease-in-out infinite; }
+        @keyframes seek { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(10deg); } }
+
+        .database-cylinder {
+            width: 60px; height: 80px;
+            background: #0b5394; border-radius: 50% / 15%;
+            position: relative;
+        }
+        .database-cylinder::before {
+            content: ""; position: absolute; top: -8px; left: 0; width: 100%; height: 16px;
+            background: #3d85c6; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .data-flow { stroke-dasharray: 8; animation: flow 1s linear infinite; }
+        @keyframes flow { to { stroke-dashoffset: -16; } }
+
+        @media (max-width: 1024px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; padding: 2rem 1rem; }
+        }
+
+        .toc-link { display: block; padding: 0.6rem 0; color: #64748b; font-size: 0.85rem; transition: all 0.2s; border-left: 3px solid transparent; padding-left: 10px; }
+        .toc-link:hover { color: var(--primary); border-left-color: #cbd5e1; }
+        .active-link { color: var(--primary); font-weight: 600; border-left-color: var(--primary); }
+        
+        .transcript-container {
+            max-height: 500px;
+            overflow-y: auto;
+            background: #fdfdfd;
+            border: 1px solid #e2e8f0;
+            padding: 2rem;
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: #475569;
+            border-radius: 12px;
+            font-family: 'Fira Code', monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="mb-10">
+            <h2 class="text-2xl font-bold" style="color: var(--primary)">SystemDesign<span style="color: var(--accent)">.io</span></h2>
+            <p class="text-xs text-slate-500 uppercase tracking-widest mt-1">Jordan's Masterclass</p>
+        </div>
+        <nav class="space-y-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">The Journey</p>
+            <a href="#prologue" class="toc-link">Prologue: The Refactor</a>
+            <a href="#chapter1" class="toc-link">Ch 1: The "Jacked" Client</a>
+            <a href="#chapter2" class="toc-link">Ch 2: Hardware Physicality</a>
+            <a href="#chapter3" class="toc-link">Ch 3: The "Beta" Invasion</a>
+            <a href="#chapter4" class="toc-link">Ch 4: The Unplug Test</a>
+            
+            <p class="text-[10px] font-bold text-slate-400 uppercase mt-6 mb-2">Deep Dives</p>
+            <a href="#fanout" class="toc-link">Fan-out (Push vs Pull)</a>
+            <a href="#hotkey" class="toc-link">The Hot Key Problem</a>
+            <a href="#cases" class="toc-link">Real-World Case Studies</a>
+            
+            <p class="text-[10px] font-bold text-slate-400 uppercase mt-6 mb-2">Reference</p>
+            <a href="#glossary" class="toc-link">Technical Glossary</a>
+            <a href="#summary" class="toc-link">Complete Transcript</a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <!-- Prologue -->
+        <header id="prologue" class="mb-16">
+            <h1 class="text-5xl font-extrabold mb-4 tracking-tight">Systems Design <br/><span style="color: var(--primary)">The Inside-Out Refactor</span></h1>
+            <p class="text-xl text-slate-500 leading-relaxed max-w-2xl">
+                "I want to make content that is as good as those paid courses... but completely free."
+            </p>
+            <div class="expert-bubble">
+                <strong>Jordan's Motivation:</strong> Previous content was "rich" in theory but lacked visual aid. Using an iPad to draw live is a game-changer for understanding how data actually moves. <strong>Timing:</strong> Learn now while the economy is down, so you're ready for the next hiring surge and "RSU refresh."
+            </div>
+        </header>
+
+        <!-- Chapter 1 -->
+        <section id="chapter1" class="story-section">
+            <span class="chapter-badge">Chapter 1</span>
+            <h2 class="text-3xl font-bold mb-6">The "Jacked" Client & The Trade-off</h2>
+            <p class="mb-6">To design a system, you must define the actors. Jordan draws himself <strong>"absolutely jacked and muscular"</strong> — this represents the <strong>Client</strong>. In a world like Facebook, you are the center of your own universe.</p>
+            
+            <div class="illustration-container">
+                <div class="flex items-center gap-12">
+                    <div class="text-center">
+                        <div class="jacked-client">💪</div>
+                        <span class="text-xs font-bold mt-2 block">The Alpha User</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] font-mono text-blue-500 font-bold">GET /profile_pic</span>
+                        <svg width="150" height="40">
+                            <path d="M10 10 H140" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" class="data-flow"/>
+                            <path d="M140 10 L130 5 M140 10 L130 15" stroke="#3b82f6" stroke-width="2" fill="none"/>
+                            
+                            <path d="M140 30 H10" stroke="#10b981" stroke-width="2" stroke-dasharray="5,5" class="data-flow" style="animation-direction: reverse;"/>
+                            <path d="M10 30 L20 25 M10 30 L20 35" stroke="#10b981" stroke-width="2" fill="none"/>
+                        </svg>
+                        <span class="text-[10px] font-mono text-green-500 font-bold">200 OK (Image Data)</span>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-20 h-24 bg-slate-800 rounded border-2 border-slate-600 flex flex-col justify-center gap-2 px-2">
+                           <div class="h-1 bg-indigo-500 rounded w-3/4 mx-auto"></div>
+                           <div class="h-1 bg-indigo-400 rounded w-1/2 mx-auto"></div>
+                           <div class="h-1 bg-indigo-500 rounded w-2/3 mx-auto"></div>
+                        </div>
+                        <span class="text-xs font-bold mt-2 block">Application Server</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p><strong>The Fundamental Trade-off:</strong> The Client makes requests and expects data. But the server is only as good as what it has stored. As Jordan notes, <em>"If Facebook didn't store this data in the first place, how could they possibly leak it?"</em> Storage is the prerequisite for service.</p>
+        </section>
+
+        <!-- Chapter 2 -->
+        <section id="chapter2" class="story-section">
+            <span class="chapter-badge">Chapter 2</span>
+            <h2 class="text-3xl font-bold mb-6">Hardware Physicality</h2>
+            <p class="mb-6">Systems design is often a battle against physics. Every server has two primary tiers of storage that dictate performance:</p>
+
+            <div class="grid md:grid-cols-2 gap-10">
+                <div class="p-6 bg-slate-50 rounded-xl border flex flex-col items-center border-indigo-100">
+                    <div class="hardware-chip mb-4 shadow-sm">
+                        <div class="chip-pin"></div><div class="chip-pin"></div><div class="chip-pin"></div><div class="chip-pin"></div><div class="chip-pin"></div>
+                    </div>
+                    <h4 class="font-bold text-lg text-indigo-900">RAM</h4>
+                    <p class="text-xs text-slate-500 italic mb-4">"The long rectangular skinny chip"</p>
+                    <p class="text-sm text-center text-slate-600 leading-relaxed">
+                        Optimized for <strong>Random Access</strong>. This is where we do our computations. Every <code>for</code> loop and variable addition happens here (or in <strong>CPU Registers</strong>). It is lightning-fast but <strong>Volatile</strong>—power off means data loss.
+                    </p>
+                </div>
+                <div class="p-6 bg-slate-50 rounded-xl border flex flex-col items-center border-amber-100">
+                    <div class="disk-visual mb-4 shadow-md">
+                        <div class="platter"></div>
+                        <div class="needle"></div>
+                    </div>
+                    <h4 class="font-bold text-lg text-amber-800">Hard Drive (HDD/SSD)</h4>
+                    <p class="text-xs text-slate-500 italic mb-4">"Skinny metal disc with a pointer"</p>
+                    <p class="text-sm text-center text-slate-600 leading-relaxed">
+                        This is <strong>Permanent Storage</strong>. It is significantly slower than RAM but survives the "unplugged" scenario. Systems design is essentially figuring out how to get data onto this "metal disc" reliably.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Chapter 3 -->
+        <section id="chapter3" class="story-section">
+            <span class="chapter-badge">Chapter 3</span>
+            <h2 class="text-3xl font-bold mb-6">The "Beta" Invasion & Bottlenecks</h2>
+            <p>You might be the "Alpha," but you aren't alone. The world is full of <strong>"Betas."</strong> As they all flood the same server, a single machine hits a <strong>Bottleneck</strong>.</p>
+            
+            <div class="illustration-container">
+                <div class="flex flex-col items-center">
+                    <div class="flex gap-4 mb-6">
+                        <span class="text-2xl opacity-50">👤</span>
+                        <span class="text-2xl">👤</span>
+                        <span class="text-4xl text-blue-600 font-bold">💪</span>
+                        <span class="text-2xl">👤</span>
+                        <span class="text-2xl opacity-50">👤</span>
+                    </div>
+                    <div class="w-80 h-20 bg-red-100 border-2 border-red-500 rounded-2xl flex flex-col items-center justify-center shadow-lg">
+                        <span class="text-red-700 font-black text-xl tracking-tighter uppercase">503: Service Unavailable</span>
+                        <span class="text-red-500 text-[10px] font-mono">CPU: 100% | RAM: 99% | DISK I/O: CRITICAL</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-4 text-center">Vertical scaling has physical limits.<br/>One machine cannot house the entire world's data.</p>
+                </div>
+            </div>
+
+            <p class="mb-4"><strong>The Scaling Dilemma:</strong> If we simply add more servers, we face a consistency nightmare. If your profile is on Server A's hard drive, and the next request hits Server B, Server B will have no idea who you are.</p>
+            <div class="p-6 bg-indigo-900 text-indigo-50 rounded-2xl shadow-xl">
+                <h4 class="font-bold mb-2 flex items-center gap-2">
+                    <span>🚀</span> The Architect's Mandate
+                </h4>
+                <p class="text-sm">We must <strong>decouple</strong> data. We need a "Sole Source of Truth" that all application servers can query. This allows us to scale our application layer <strong>Statelessly</strong>.</p>
+            </div>
+        </section>
+
+        <!-- Chapter 4 -->
+        <section id="chapter4" class="story-section">
+            <span class="chapter-badge">Chapter 4</span>
+            <h2 class="text-3xl font-bold mb-6">The "Unplug" Test & Fault Tolerance</h2>
+            <p>The "Inside-Out" approach starts with the <strong>Database</strong> (the Cylinder). But a single database is a <strong>Single Point of Failure</strong>. Jordan presents the ultimate test:</p>
+            
+            <div class="expert-bubble bg-red-50 border-red-500 text-red-900">
+                "What if I were to unplug the computer that the database was on? Now I could never fetch my post history because all these application servers would fail to contact the database."
+            </blockquote>
+
+            <div class="grid md:grid-cols-2 gap-10 mt-8">
+                <div class="flex flex-col items-center p-8 bg-slate-50 rounded-3xl border border-slate-200">
+                    <div class="database-cylinder mb-4"></div>
+                    <div class="h-1 w-20 bg-red-500 rounded-full mb-4"></div>
+                    <h4 class="font-bold text-red-700">Fragile System</h4>
+                    <p class="text-xs text-center text-slate-500">Unplugging the DB kills the entire user experience. No redundancy.</p>
+                </div>
+                <div class="flex flex-col items-center p-8 bg-emerald-50 rounded-3xl border border-emerald-200">
+                    <div class="flex gap-4 mb-4">
+                        <div class="database-cylinder"></div>
+                        <div class="database-cylinder opacity-60"></div>
+                        <div class="database-cylinder opacity-60"></div>
+                    </div>
+                    <div class="h-1 w-20 bg-emerald-500 rounded-full mb-4"></div>
+                    <h4 class="font-bold text-emerald-700">Fault Tolerant System</h4>
+                    <p class="text-xs text-center text-slate-500">Replication and Sharding ensure that even if one "Cylinder" is unplugged, the "Truth" survives elsewhere.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Deep Dive Section -->
+        <section id="fanout" class="story-section bg-slate-50 border-none shadow-none border-l-8 border-indigo-600">
+            <h2 class="text-3xl font-black mb-8 text-indigo-900 tracking-tight">Technical Deep Dive: Fan-out</h2>
+            <p class="mb-6 leading-relaxed">Implicit in Jordan's discussion of Facebook is <strong>Fan-out</strong>—the mechanism of delivering a single update to millions of recipients. Architects must choose between two expensive trade-offs:</p>
+            
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
+                    <h4 class="font-bold text-indigo-600 mb-2">Fan-out on Write (Push)</h4>
+                    <p class="text-sm text-slate-600 mb-4">When a user posts, the system "pushes" the data into the pre-computed feed of every follower immediately.</p>
+                    <div class="text-xs space-y-2">
+                        <div class="flex justify-between"><span>Read Latency:</span> <span class="text-emerald-500 font-bold">O(1) - Instant</span></div>
+                        <div class="flex justify-between"><span>Write Cost:</span> <span class="text-red-500 font-bold">O(N) - Very High</span></div>
+                    </div>
+                </div>
+                <div class="p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
+                    <h4 class="font-bold text-indigo-600 mb-2">Fan-out on Read (Pull)</h4>
+                    <p class="text-sm text-slate-600 mb-4">The feed is built only when the user logs in by "pulling" from everyone they follow. No pre-computation.</p>
+                    <div class="text-xs space-y-2">
+                        <div class="flex justify-between"><span>Read Latency:</span> <span class="text-red-500 font-bold">O(N) - Slower</span></div>
+                        <div class="flex justify-between"><span>Write Cost:</span> <span class="text-emerald-500 font-bold">O(1) - Fast</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="hotkey" class="story-section bg-slate-50 border-none shadow-none border-l-8 border-amber-500">
+            <h2 class="text-3xl font-black mb-8 text-amber-900 tracking-tight">Technical Deep Dive: The Hot Key</h2>
+            <p class="mb-6 leading-relaxed text-slate-700">A <strong>Hot Key</strong> occurs when a specific piece of data (the ID of a viral post) is requested by millions of people at once, overwhelming a single shard.</p>
+            
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="p-4 bg-white rounded-lg border border-amber-100 text-center">
+                    <div class="text-2xl mb-2">🧂</div>
+                    <h5 class="font-bold text-sm">Salting</h5>
+                    <p class="text-[10px] text-slate-500">Adding random suffixes to keys to distribute them across shards.</p>
+                </div>
+                <div class="p-4 bg-white rounded-lg border border-amber-100 text-center">
+                    <div class="text-2xl mb-2">⚡</div>
+                    <h5 class="font-bold text-sm">Local Cache</h5>
+                    <p class="text-[10px] text-slate-500">Storing the hot data in the App Server's RAM to avoid DB hits.</p>
+                </div>
+                <div class="p-4 bg-white rounded-lg border border-amber-100 text-center">
+                    <div class="text-2xl mb-2">🔄</div>
+                    <h5 class="font-bold text-sm">Read Replicas</h5>
+                    <p class="text-[10px] text-slate-500">Scaling out the number of "discs" that can serve the data.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Real-World Mapping -->
+        <section id="cases" class="story-section">
+            <h2 class="text-3xl font-bold mb-8">Real-World Case Studies</h2>
+            <div class="space-y-6">
+                <div class="p-6 border rounded-2xl bg-sky-50 border-sky-100">
+                    <h4 class="font-bold text-sky-900 mb-2">Facebook News Feed (The Prototype)</h4>
+                    <p class="text-sm text-sky-800 leading-relaxed">Prioritizes <strong>Read Latency</strong>. Billions of "Betas" need to scroll without lag. Uses <strong>Eventual Consistency</strong>—it doesn't matter if you see your friend's post 5 seconds late, as long as the scrolling is smooth.</p>
+                </div>
+                <div class="p-6 border rounded-2xl bg-orange-50 border-orange-100">
+                    <h4 class="font-bold text-orange-900 mb-2">Amazon Checkout (The Strong Consistence)</h4>
+                    <p class="text-sm text-orange-800 leading-relaxed">Prioritizes <strong>Data Integrity</strong>. You cannot have "eventual consistency" on inventory. If the last item is sold, the database must reflect that immediately to all users to prevent overselling.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Glossary -->
+        <section id="glossary" class="story-section">
+            <h2 class="text-3xl font-bold mb-8">Technical Glossary</h2>
+            <div class="grid md:grid-cols-2 gap-x-12 gap-y-6 text-sm">
+                <div>
+                    <span class="font-bold text-indigo-700 block mb-1">Bottleneck</span>
+                    <p class="text-slate-500 leading-relaxed">The component (CPU, Network, or Disk) that limits the entire system's throughput.</p>
+                </div>
+                <div>
+                    <span class="font-bold text-indigo-700 block mb-1">Statelessness</span>
+                    <p class="text-slate-500 leading-relaxed">A design where servers don't store session data, allowing any server to handle any request.</p>
+                </div>
+                <div>
+                    <span class="font-bold text-indigo-700 block mb-1">Fault Tolerance</span>
+                    <p class="text-slate-500 leading-relaxed">The ability of a system to remain functional even when individual components (hardware) fail.</p>
+                </div>
+                <div>
+                    <span class="font-bold text-indigo-700 block mb-1">Source of Truth</span>
+                    <p class="text-slate-500 leading-relaxed">The authoritative database record that defines the current state of the entire system.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complete Transcript -->
+        <section id="summary" class="story-section bg-slate-900 border-none">
+            <h2 class="text-2xl font-bold mb-6 text-sky-400">Complete Discussion Transcript</h2>
+            <div class="transcript-container">
+                <p>Hey everyone and welcome back to the channel. Uh for those of you who are new here, my name is Jordan. I'm a Google software engineer and uh in today's video I will be beginning my refactored systems design interview series. So uh I am absolutely a hypocrite for this in the sense that I said I didn't want to make redundant content on my channel. Uh but at the same time um one of the biggest pieces of feedback that I received in my last series was that even though the content was very rich uh I often didn't give a lot of visual aid and uh trust me you know I understand that visual aid is very important you know for example try you know doing your thing without hub or something it would be real tough so with all these things in mind um you know I've acquired an iPad I don't really know how to use it very well my drawing skills are very bad and my hands are shaky but uh you know worse Worst comes to worse, the iPad is going to make certain parts of my life a lot easier. And uh yeah, my ultimate goal is to make content on this channel that is pretty much as good as all those paid courses from these grifting tech YouTubers. Uh with the exception that it is completely free. In fact, I hope to make it better because uh yeah, you know, I'm just going to try and do a really really thorough deep dive on everything. And unlike my last series that I kind of made, I'm hoping to even do smaller chunks per video for a couple of reasons. One is that it's more digestible and the other reason is that I'm a lazy [__] and I don't like editing that much. And so I figure that, you know, it's a win-win for the both of us if this series takes a little bit longer by doing less per video. So with that all being said, if you're new here or if you're new to systems design in general, I think this series will be super useful for you. It really does cover a lot. So, you know, expect to learn a lot and uh you know, this is a great time to start learning because the economy is in a downturn at the moment, but in 6 months to a year when this series is finished, you know, jobs are probably going to be pretty hot again and uh you're going to want to get a refresh on that RSU price. So, all those things being considered, uh let's jump into it. we can go ahead and do a little example of what systems design kind of means or is or the considerations that you might have on the iPad and I will do my best to make it understandable for all of you. Uh have a happy new year and let's get into it. All right, let's go ahead and get into this. So to kind of frame the systems design interview as a problem, it's basically something like this. You're a website. You are perhaps even just an internal infrastructural service with a lot of usage, right? So much so to the point that just storing everything on one machine is not sufficient anymore. And so let's give an example of that. So here I am drawing myself on screen. As you can see, I've drawn myself to figure absolutely jacked and muscular. So this is me and in the context of a website like a social media website, let's say Facebook for example, I am what is known as the client. I make requests to the servers of the social media website and in exchange I expect data. So let's go ahead and show that data. Here I am drawing a nice little arrow and then if we're talking about Facebook for example, here is the Facebook application server which will probably be located in one of their data centers. So now what I'm asking for from Facebook is some data. At some point I probably stored something like a profile picture there. I stored some information about myself or my past posts and I want to get it back from them. If Facebook didn't store this data in the first place, how could they possibly leak it? So, here we go. And we have these Facebook servers. And so, the question is now uh kind of one of the ways that I want to start thinking about these problems is where do we actually store the data? So, before we even think of, you know, what servers we store the data on, let's think about what hardware we store the data on. So when it comes to uh data in general and computers, there are two basic places that you can put it. And one is RAM. You know, it looks like a little long rectangular skinny chip. And that is good for random access or basically it's short for random access memory, but it's good for temporary storage of data. You know, that's where we do our computations when we're coding. If you're writing like a for loop, you're adding a couple numbers. Uh technically, you know, a lot of that's going on in CPU registers, but eventually it's going to get stored uh with the variables and RAM. And in addition to that, we have our HDD or our hard drive. And so this is you, I'm sure you've seen this before, looks almost like an iPad, but with a nice little skinny metal disc in the middle and then this kind of pointer which points to a specific part of the disc. Again, pardon my bad drawing skills. And the good thing about hard drives is that can actually permanently store data at least in the sense that the hard drive itself is not broken or you know other extenuating circumstances. So when we are actually going to store data for a company like Facebook, we want to obviously put that Facebook, we want to obviously put that on the hard drive. Why? Because servers can shut down at any given time. You can shut down at any given time. You know, maybe someone unplugs the power and if that were to happen, we don't want to lose the data. Of course, you know, hard drives can be broken too and we have to think about more than that. But uh at least for now, let's just think we're storing our data on this hard drive. And that's going to be a little bit slower than RAM, but we'll touch upon this in future episodes. This is mainly just for an introduction. So the next question is what computer do we actually put uh this data on? Every computer has a hard drive, but which computer is the one actually holding the data? Should it be the Facebook application server? Well, actually the answer is probably not. And why is this? Well, for starters, the Facebook application server is not just talking to me. it's talking to a bunch of other people right here are all these other betas throughout the world. Even though I'm the alpha, unfortunately, I have to contact the same servers as them. And so eventually there going to be so many people that just one application server to talk to all these people isn't going to be enough. I'm actually going to need more. And so, you know, we've got all these other servers. And if we were to actually store, you know, my specific profile data on the original server, now that's going to be a problem because when these guys go ahead and contact other servers, they're not actually going to be able to see their data. They're not going to have access to it. And so, in this sense, we want our data itself to be scalable in a way that is separate from our application servers. the application servers or at least the user requests to application servers typically becomes a bottleneck to the performance of our website before the actual accessing of the data does. Uh typically that's because there's things like caching where we can temporarily store some of the data on these servers and you know that that makes things easier. But again this is all stuff we're going to get into later. So what we really want to be doing instead is basically having one other computer in the background. You'll see I'll draw it as this cylinder here. And this is what I'll call a database. The database is only responsible for being basically the sole source of truth of all of that profile data, post history, all of these things. And now application servers can go ahead and just ask the database for specific data about profiles, my users, all my Facebook history, etc., etc., etc. This is completely oversimplified, right? The truth of the matter is when you have so many users, even one database isn't going to be enough, right? We could make the computer that the database is located on more powerful, but eventually even that's not good enough. There's simply just too many humans in the world. And so the main kind of point of systems design is how can we make the fetching and storing of this data faster both in reads and writes and more reliable. What do I mean by more reliable? I mean fault tolerant. What if I were to unplug the computer that the database was on? Now I could never fetch my post history because all these application servers would fail to contact the database. So what that means is we have to come up with ways to basically have backups. If there's too much data for one database, we may have to actually split the data into multiple databases and be smart about that. And again, pretty much all of this just arises from complications of having tons and tons of users on these massive websites. And so in order to kind of first tackle the problem of covering all of these systems design interview tips, I prefer to kind of start with the inside out in the sense that I'm going to start from the database and slowly slowly move towards kind of the client layer, right? Going to the application servers, thinking about caching, things like that. And if you know what those terms mean, that's great. If you don't, no worries. We're going to learn all of them and it's going to take a while, but ultimately it will be well worth it. So guys, thank you for watching the first episode. I hope that this format of teaching works well for you in the sense that I will now mostly be doing a lot of writing on the iPad. Uh but at the end of the day, we're all going to learn a lot. I'm still learning a lot by teaching this. And uh yeah, let's do our.</p>
+            </div>
+        </section>
+
+        <footer class="text-center text-slate-400 text-xs mt-12 pb-12">
+            <p>System Design Series | Refactored for Visual Learning</p>
+            <p class="mt-2">"You're going to want to get a refresh on that RSU price." — Jordan</p>
+        </footer>
+    </main>
+    
+    <script>
+        const links = document.querySelectorAll('.toc-link');
+        const sections = document.querySelectorAll('section, header');
+
+        window.onscroll = () => {
+            let current = "";
+            sections.forEach((section) => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 150) {
+                    current = section.getAttribute("id");
+                }
+            });
+
+            links.forEach((link) => {
+                link.classList.remove("active-link");
+                if (link.getAttribute("href").includes(current)) {
+                    link.classList.add("active-link");
+                }
+            });
+        };
+    </script>
+</body>
+</html>
